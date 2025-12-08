@@ -20,7 +20,9 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "typecheck": "pnpm -r typecheck",
     "clean": "pnpm -r clean && rm -rf node_modules",
-    "prepare": "husky"
+    "prepare": "husky",
+    "infra:start": "bash infra/start-dev.sh",
+    "infra:stop": "bash infra/stop-dev.sh"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
