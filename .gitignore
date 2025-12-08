@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Electron
+release/
+*.dmg
+*.app
+*.exe
+*.AppImage
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Keys and secrets (NEVER commit these)
+*.pem
+*.key
+*.crt
+secrets/
+
+# OS files
+Thumbs.db
+.DS_Store

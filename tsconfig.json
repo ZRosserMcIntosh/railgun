@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@railgun/shared": ["packages/shared/src"],
+      "@railgun/shared/*": ["packages/shared/src/*"]
+    }
+  },
+  "references": [
+    { "path": "packages/shared" },
+    { "path": "services/api" },
+    { "path": "apps/desktop" }
+  ]
+}
