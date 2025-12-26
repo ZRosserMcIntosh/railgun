@@ -5,7 +5,7 @@ echo "🚀 Starting Rail Gun development infrastructure..."
 
 # Try docker compose (newer) first, fall back to docker-compose
 if command -v docker &> /dev/null; then
-  docker compose -f infra/docker-compose.yml up -d
+  docker compose -f docker-compose.yml up -d
 else
   echo "❌ Docker is not installed or not in PATH"
   echo "Please install Docker Desktop from https://www.docker.com/products/docker-desktop/"

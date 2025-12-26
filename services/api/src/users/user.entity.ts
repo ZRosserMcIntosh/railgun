@@ -8,6 +8,19 @@ import {
 } from 'typeorm';
 import { PresenceStatus } from '@railgun/shared';
 
+/**
+ * Stored recovery code hash structure
+ * Recovery codes are hashed and never stored in plaintext
+ */
+export interface RecoveryCodeHash {
+  id: string;           // Unique ID for this code
+  hash: string;         // HMAC hash of the code
+  salt: string;         // Per-code salt
+  used: boolean;        // Whether this code has been used
+  createdAt: Date;      // When this code was generated
+  usedAt?: Date | null; // When this code was used (if applicable)
+}
+
 @Entity('users')
 export class UserEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -23,9 +36,12 @@ export class UserEntity {
   @Column({ type: 'varchar', length: 255, nullable: true })
   avatarUrl?: string;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   @Index()
-  email!: string;
+  email?: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  phone?: string | null;
 
   @Column({ type: 'varchar', length: 255 })
   passwordHash!: string;
@@ -55,4 +71,8 @@ export class UserEntity {
   // Refresh token hash for token rotation
   @Column({ type: 'varchar', length: 255, nullable: true })
   refreshTokenHash?: string;
+
+  // Recovery codes stored as JSONB (hashed, never plaintext)
+  @Column({ type: 'jsonb', nullable: true, default: [] })
+  recoveryCodes!: RecoveryCodeHash[];
 }

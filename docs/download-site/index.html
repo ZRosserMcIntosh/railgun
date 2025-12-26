@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Rail Gun - Secure Private Messaging</title>
+    <meta name="description" content="Rail Gun is an end-to-end encrypted messaging app with Signal Protocol encryption. Download for macOS, Windows, and Linux.">
+    
+    <!-- Security Headers via meta tags (CSP set by server) -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="./favicon.png">
+    
+    <!-- No external resources - all inline for security -->
+    <style>
+        :root {
+            --bg-primary: #0f0f10;
+            --bg-secondary: #1a1a1c;
+            --bg-elevated: #242428;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --success: #22c55e;
+            --warning: #eab308;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+        
+        header {
+            text-align: center;
+            padding: 3rem 0;
+        }
+        
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 1.5rem;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .tagline {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+        
+        .security-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--bg-elevated);
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-size: 0.875rem;
+            color: var(--success);
+        }
+        
+        .downloads {
+            margin: 3rem 0;
+        }
+        
+        .downloads h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        
+        .download-grid {
+            display: grid;
+            gap: 1rem;
+        }
+        
+        .download-card {
+            background: var(--bg-secondary);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .download-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .platform-icon {
+            width: 48px;
+            height: 48px;
+            flex-shrink: 0;
+        }
+        
+        .download-info {
+            flex: 1;
+        }
+        
+        .download-info h3 {
+            font-size: 1.125rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .download-info p {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .download-btn {
+            background: var(--accent);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        
+        .download-btn:hover {
+            background: var(--accent-hover);
+        }
+        
+        .version-info {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin: 2rem 0;
+        }
+        
+        .verify {
+            background: var(--bg-secondary);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+        
+        .verify h3 {
+            font-size: 1.125rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .verify pre {
+            background: var(--bg-primary);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-size: 0.8125rem;
+            margin: 1rem 0;
+        }
+        
+        .verify code {
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        }
+        
+        .checksums {
+            background: var(--bg-secondary);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+        
+        .checksums h3 {
+            font-size: 1.125rem;
+            margin-bottom: 1rem;
+        }
+        
+        .checksum-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--bg-elevated);
+            font-size: 0.875rem;
+        }
+        
+        .checksum-item:last-child {
+            border-bottom: none;
+        }
+        
+        .checksum-hash {
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            word-break: break-all;
+        }
+        
+        .features {
+            margin: 3rem 0;
+        }
+        
+        .features h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .feature {
+            background: var(--bg-secondary);
+            padding: 1.25rem;
+            border-radius: 0.75rem;
+        }
+        
+        .feature h4 {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .feature p {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        footer {
+            text-align: center;
+            padding: 3rem 0;
+            border-top: 1px solid var(--bg-elevated);
+            margin-top: 3rem;
+        }
+        
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            text-decoration: underline;
+        }
+        
+        footer p {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-top: 1rem;
+        }
+        
+        @media (max-width: 600px) {
+            .download-card {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .checksum-item {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <!-- Inline SVG logo for no external requests -->
+            <svg class="logo" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="80" height="80" rx="16" fill="#6366f1"/>
+                <path d="M25 55L40 20L55 55" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M30 45H50" stroke="white" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+            <h1>Rail Gun</h1>
+            <p class="tagline">Private. Secure. Encrypted.</p>
+            <div class="security-badge">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                End-to-end encrypted with Signal Protocol
+            </div>
+        </header>
+        
+        <section class="downloads">
+            <h2>Download Rail Gun</h2>
+            <div class="download-grid">
+                <!-- macOS -->
+                <div class="download-card">
+                    <svg class="platform-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                    </svg>
+                    <div class="download-info">
+                        <h3>macOS</h3>
+                        <p>macOS 11+ (Intel & Apple Silicon)</p>
+                    </div>
+                    <a href="#" class="download-btn" id="download-mac">Download</a>
+                </div>
+                
+                <!-- Windows -->
+                <div class="download-card">
+                    <svg class="platform-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm17 .25V22l-10-1.91V13.1l10 .15z"/>
+                    </svg>
+                    <div class="download-info">
+                        <h3>Windows</h3>
+                        <p>Windows 10+ (64-bit)</p>
+                    </div>
+                    <a href="#" class="download-btn" id="download-win">Download</a>
+                </div>
+                
+                <!-- Linux -->
+                <div class="download-card">
+                    <svg class="platform-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12.504 0c-.155 0-.311.001-.465.003-.653.014-1.295.086-1.926.21-.634.126-1.255.318-1.859.552-.606.234-1.188.518-1.74.847a10.08 10.08 0 0 0-1.546 1.174 10.1 10.1 0 0 0-1.293 1.46 10.16 10.16 0 0 0-1.01 1.705 10.19 10.19 0 0 0-.688 1.891 10.14 10.14 0 0 0-.355 1.991c-.068.668-.088 1.34-.053 2.01.035.67.12 1.337.258 1.996.138.66.327 1.308.569 1.94.242.632.534 1.243.874 1.827a10.05 10.05 0 0 0 1.174 1.634c.44.492.918.941 1.428 1.343.511.402 1.053.755 1.617 1.056a10.08 10.08 0 0 0 1.783.76c.621.2 1.256.352 1.9.45.643.098 1.294.148 1.947.148.653 0 1.304-.05 1.947-.148.644-.098 1.279-.25 1.9-.45a10.08 10.08 0 0 0 1.783-.76c.564-.301 1.106-.654 1.617-1.056.51-.402.988-.851 1.428-1.343a10.05 10.05 0 0 0 1.174-1.634c.34-.584.632-1.195.874-1.827.242-.632.431-1.28.569-1.94.138-.659.223-1.326.258-1.996.035-.67.015-1.342-.053-2.01a10.14 10.14 0 0 0-.355-1.991 10.19 10.19 0 0 0-.688-1.891 10.16 10.16 0 0 0-1.01-1.705 10.1 10.1 0 0 0-1.293-1.46 10.08 10.08 0 0 0-1.546-1.174 9.99 9.99 0 0 0-1.74-.847 10.01 10.01 0 0 0-1.859-.552c-.631-.124-1.273-.196-1.926-.21A12.22 12.22 0 0 0 12.504 0zm-.177 2.1c.397.006.793.03 1.186.073.392.042.781.104 1.164.184.383.08.76.18 1.128.298.368.118.727.256 1.074.411.347.155.683.328 1.004.516.321.188.628.393.918.612.29.219.563.453.817.699.254.247.49.507.705.779.215.272.41.556.582.849.172.294.321.597.447.908.126.311.229.63.308.953.079.324.134.653.164.984.03.332.036.666.017.999-.019.333-.062.665-.13.993a7.95 7.95 0 0 1-.273.97 7.95 7.95 0 0 1-.403.927 8.01 8.01 0 0 1-.52.866 8.1 8.1 0 0 1-.618.79 8.14 8.14 0 0 1-.701.698 8.16 8.16 0 0 1-.767.59 8.14 8.14 0 0 1-.819.468 8.1 8.1 0 0 1-.856.333 8.05 8.05 0 0 1-.878.19 7.97 7.97 0 0 1-.884.047 7.97 7.97 0 0 1-.884-.047 8.05 8.05 0 0 1-.878-.19 8.1 8.1 0 0 1-.856-.333 8.14 8.14 0 0 1-.819-.468 8.16 8.16 0 0 1-.767-.59 8.14 8.14 0 0 1-.701-.698 8.1 8.1 0 0 1-.618-.79 8.01 8.01 0 0 1-.52-.866 7.95 7.95 0 0 1-.403-.927 7.95 7.95 0 0 1-.273-.97c-.068-.328-.111-.66-.13-.993-.019-.333-.013-.667.017-.999.03-.331.085-.66.164-.984.079-.323.182-.642.308-.953.126-.311.275-.614.447-.908.172-.293.367-.577.582-.849.215-.272.451-.532.705-.779.254-.246.527-.48.817-.699.29-.219.597-.424.918-.612.321-.188.657-.361 1.004-.516.347-.155.706-.293 1.074-.411.368-.118.745-.218 1.128-.298.383-.08.772-.142 1.164-.184.393-.043.789-.067 1.186-.073z"/>
+                    </svg>
+                    <div class="download-info">
+                        <h3>Linux</h3>
+                        <p>Debian, Ubuntu, Fedora, AppImage</p>
+                    </div>
+                    <a href="#" class="download-btn" id="download-linux">Download</a>
+                </div>
+            </div>
+        </section>
+        
+        <p class="version-info">
+            Current version: <strong id="version">0.1.0</strong> • 
+            <a href="https://github.com/[org]/rail-gun/releases" target="_blank" rel="noopener">Release notes</a>
+        </p>
+        
+        <section class="verify">
+            <h3>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                </svg>
+                Verify Your Download
+            </h3>
+            <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">
+                Always verify downloads to ensure they haven't been tampered with.
+            </p>
+            <h4 style="font-size: 0.875rem; margin-bottom: 0.5rem;">1. Import our GPG key:</h4>
+            <pre><code>gpg --keyserver keys.openpgp.org --recv-keys [KEY_ID]</code></pre>
+            
+            <h4 style="font-size: 0.875rem; margin-bottom: 0.5rem;">2. Verify the signature:</h4>
+            <pre><code>gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt</code></pre>
+            
+            <h4 style="font-size: 0.875rem; margin-bottom: 0.5rem;">3. Check the checksum:</h4>
+            <pre><code># macOS/Linux
+sha256sum -c SHA256SUMS.txt --ignore-missing
+
+# Windows PowerShell
+Get-FileHash Rail-Gun-*.exe | Format-List</code></pre>
+        </section>
+        
+        <section class="checksums">
+            <h3>SHA256 Checksums</h3>
+            <div id="checksum-list">
+                <div class="checksum-item">
+                    <span>Rail-Gun-0.1.0-mac-universal.dmg</span>
+                    <span class="checksum-hash">[checksum]</span>
+                </div>
+                <div class="checksum-item">
+                    <span>Rail-Gun-0.1.0-win-x64.exe</span>
+                    <span class="checksum-hash">[checksum]</span>
+                </div>
+                <div class="checksum-item">
+                    <span>Rail-Gun-0.1.0-linux-x86_64.AppImage</span>
+                    <span class="checksum-hash">[checksum]</span>
+                </div>
+            </div>
+            <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 1rem;">
+                Full checksums: <a href="SHA256SUMS.txt" style="color: var(--accent);">SHA256SUMS.txt</a> • 
+                Signature: <a href="SHA256SUMS.txt.asc" style="color: var(--accent);">SHA256SUMS.txt.asc</a>
+            </p>
+        </section>
+        
+        <section class="features">
+            <h2>Why Rail Gun?</h2>
+            <div class="feature-grid">
+                <div class="feature">
+                    <h4>🔒 Signal Protocol</h4>
+                    <p>Industry-standard end-to-end encryption using libsignal</p>
+                </div>
+                <div class="feature">
+                    <h4>🔑 Local Keys</h4>
+                    <p>Your encryption keys never leave your device</p>
+                </div>
+                <div class="feature">
+                    <h4>👥 Communities</h4>
+                    <p>Create encrypted group spaces with channels</p>
+                </div>
+                <div class="feature">
+                    <h4>💬 Private DMs</h4>
+                    <p>One-on-one conversations with perfect forward secrecy</p>
+                </div>
+                <div class="feature">
+                    <h4>🖥️ Desktop First</h4>
+                    <p>Native Electron app for macOS, Windows, Linux</p>
+                </div>
+                <div class="feature">
+                    <h4>🔓 Open Source</h4>
+                    <p>Fully auditable code on GitHub</p>
+                </div>
+            </div>
+        </section>
+        
+        <footer>
+            <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
+                <a href="https://github.com/[org]/rail-gun" target="_blank" rel="noopener">GitHub</a>
+                <a href="https://github.com/[org]/rail-gun/blob/main/SECURITY.md" target="_blank" rel="noopener">Security</a>
+                <a href="https://github.com/[org]/rail-gun/blob/main/RELEASE.md" target="_blank" rel="noopener">Verify Downloads</a>
+            </div>
+            <p>Rail Gun is open source software. Not affiliated with Signal Foundation.</p>
+        </footer>
+    </div>
+    
+    <!-- Minimal inline JS - no external scripts -->
+    <script>
+        // Detect platform and highlight appropriate download
+        (function() {
+            const platform = navigator.platform.toLowerCase();
+            let btn;
+            if (platform.includes('mac')) {
+                btn = document.getElementById('download-mac');
+            } else if (platform.includes('win')) {
+                btn = document.getElementById('download-win');
+            } else if (platform.includes('linux')) {
+                btn = document.getElementById('download-linux');
+            }
+            if (btn) {
+                btn.style.background = '#22c55e';
+                btn.textContent = 'Download for Your Platform';
+            }
+        })();
+    </script>
+</body>
+</html>

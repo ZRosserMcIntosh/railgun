@@ -1,0 +1,93 @@
+version: 2
+updates:
+  # NPM dependencies for root and all packages
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    groups:
+      # Group minor and patch updates together
+      dependencies:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@libsignal/*"
+          - "electron"
+          - "electron-builder"
+        update-types:
+          - "minor"
+          - "patch"
+      # Keep Electron updates separate for careful review
+      electron:
+        patterns:
+          - "electron"
+          - "electron-builder"
+          - "@electron/*"
+    ignore:
+      # Ignore major version bumps for stability
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+  # API service dependencies
+  - package-ecosystem: "npm"
+    directory: "/services/api"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      nestjs:
+        patterns:
+          - "@nestjs/*"
+      typeorm:
+        patterns:
+          - "typeorm"
+          - "@types/pg"
+          - "pg"
+    commit-message:
+      prefix: "deps(api)"
+
+  # Desktop app dependencies
+  - package-ecosystem: "npm"
+    directory: "/apps/desktop"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+    commit-message:
+      prefix: "deps(desktop)"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/infra"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "deps(docker)"

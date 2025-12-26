@@ -1,0 +1,11 @@
+# Ignore everything by default
+*
+
+# Allow only necessary files
+!dist/
+!package.json
+
+# Ignore test files even in dist
+dist/**/*.test.*
+dist/**/*.spec.*
+dist/**/__tests__/

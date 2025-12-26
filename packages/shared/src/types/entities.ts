@@ -4,6 +4,7 @@
  */
 
 import { DeviceType, Permission, PresenceStatus } from '../enums.js';
+import { RecipientEnvelope } from './dto.js';
 
 /** Base entity with common fields */
 export interface BaseEntity {
@@ -139,15 +140,5 @@ export interface MessageMetadata extends BaseEntity {
   /** Protocol version used */
   protocolVersion: number;
   /** Encrypted message envelopes for each recipient device */
-  envelopes: EncryptedEnvelope[];
-}
-
-/** Encrypted envelope for a specific recipient device */
-export interface EncryptedEnvelope {
-  /** Recipient device ID */
-  recipientDeviceId: string;
-  /** Base64-encoded ciphertext */
-  ciphertext: string;
-  /** Message type for Signal protocol (prekey, whisper, etc.) */
-  messageType: number;
+  envelopes: RecipientEnvelope[];
 }

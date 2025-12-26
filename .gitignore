@@ -32,10 +32,13 @@ coverage/
 
 # Electron
 release/
+dist-electron/
 *.dmg
 *.app
 *.exe
 *.AppImage
+*.zip
+*.blockmap
 
 # Database
 *.sqlite

@@ -5,6 +5,10 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { GatewayModule } from './gateway/gateway.module';
+import { MessagesModule } from './messages/messages.module';
+import { CommunitiesModule } from './communities/communities.module';
+import { CryptoModule } from './crypto/crypto.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -13,6 +17,9 @@ import { GatewayModule } from './gateway/gateway.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+
+    // Redis (global)
+    RedisModule,
 
     // Database
     TypeOrmModule.forRootAsync({
@@ -36,6 +43,9 @@ import { GatewayModule } from './gateway/gateway.module';
     AuthModule,
     UsersModule,
     GatewayModule,
+    MessagesModule,
+    CommunitiesModule,
+    CryptoModule,
   ],
 })
 export class AppModule {}
