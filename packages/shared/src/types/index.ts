@@ -8,3 +8,5 @@ export * from './dto.js';
 export * from './crypto.js';
 export * from './p2p.types.js';
 export * from './dex.types.js';
+export * from './bootstrap.types.js';
+export * from './updates.types.js';
