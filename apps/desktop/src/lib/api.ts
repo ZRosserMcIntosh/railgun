@@ -1,6 +1,11 @@
 import { ConversationType, DeviceType } from '@railgun/shared';
+import { config } from './env';
 
-const API_BASE_URL = 'http://localhost:3001/api/v1';
+/**
+ * API Base URL - Uses environment configuration.
+ * See env.ts for how this is resolved from environment variables or defaults.
+ */
+const API_BASE_URL = config.apiUrl;
 
 interface ApiError {
   message: string;

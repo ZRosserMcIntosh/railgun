@@ -4,8 +4,13 @@ import { getMessagingService, SendMessageOptions } from './messagingService';
 import { useChatStore } from '../stores/chatStore';
 import { useAuthStore } from '../stores/authStore';
 import type { ServerMessage } from './api';
+import { config } from './env';
 
-const WS_URL = 'http://localhost:3001/ws';
+/**
+ * WebSocket URL - Uses environment configuration.
+ * See env.ts for how this is resolved from environment variables or defaults.
+ */
+const WS_URL = config.wsUrl;
 
 /** Encrypted message payload to send to server */
 interface EncryptedMessagePayload {

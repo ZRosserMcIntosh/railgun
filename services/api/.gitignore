@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+
+# Environment (NEVER commit!)
+.env
+.env.local
+.env.*.local
+
+# Database backups (contain sensitive data)
+backups/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage
+coverage/
+
+# TypeORM
+*.tsbuildinfo

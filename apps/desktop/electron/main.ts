@@ -1,6 +1,9 @@
 import { app, BrowserWindow, ipcMain, safeStorage, session, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import { initAutoUpdater, getAutoUpdater } from './auto-updater';
+import { initAnalytics, getAnalytics } from './analytics';
+import { initFeatureFlags, getFeatureFlags } from './feature-flags';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -20,6 +23,13 @@ process.on('uncaughtException', (error) => {
     return;
   }
   console.error('Uncaught exception:', error);
+  
+  // Track crash in analytics
+  const analytics = getAnalytics();
+  if (analytics) {
+    analytics.trackError('uncaught_exception', error.message);
+  }
+  
   process.exit(1);
 });
 
@@ -253,7 +263,32 @@ app.whenReady().then(() => {
   // Load secure store from disk
   secureStoreData = loadSecureStore();
   
+  // Initialize analytics (privacy-first, with consent)
+  const analytics = initAnalytics({
+    debug: isDev,
+    sampleRate: isDev ? 1.0 : 0.1, // 10% sampling in production
+  });
+  analytics.startSession();
+  
+  // Initialize feature flags
+  const featureFlags = initFeatureFlags();
+  featureFlags.startAutoRefresh();
+  
+  // Initialize auto-updater (production only)
+  if (!isDev) {
+    const updater = initAutoUpdater();
+    updater.startAutoCheck();
+  }
+  
   createWindow();
+  
+  // Set main window for updater notifications
+  if (mainWindow) {
+    const updater = getAutoUpdater();
+    if (updater) {
+      updater.setMainWindow(mainWindow);
+    }
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -263,8 +298,34 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  // End analytics session
+  const analytics = getAnalytics();
+  if (analytics) {
+    analytics.endSession();
+  }
+  
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+});
+
+app.on('before-quit', () => {
+  // Ensure analytics are flushed before quit
+  const analytics = getAnalytics();
+  if (analytics) {
+    analytics.flush();
+  }
+  
+  // Stop auto-updater
+  const updater = getAutoUpdater();
+  if (updater) {
+    updater.stopAutoCheck();
+  }
+  
+  // Stop feature flag refresh
+  const featureFlags = getFeatureFlags();
+  if (featureFlags) {
+    featureFlags.stopAutoRefresh();
   }
 });
 
@@ -324,18 +385,20 @@ app.on('web-contents-created', (_event, contents) => {
       ? // Development: Allow Vite dev server and HMR
         "default-src 'self' http://localhost:5173; " +
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5173; " +
-        "style-src 'self' 'unsafe-inline' http://localhost:5173; " +
+        "style-src 'self' 'unsafe-inline' http://localhost:5173 https://fonts.googleapis.com; " +
+        "style-src-elem 'self' 'unsafe-inline' http://localhost:5173 https://fonts.googleapis.com; " +
         "img-src 'self' data: blob: http://localhost:5173; " +
-        "font-src 'self' data: http://localhost:5173; " +
+        "font-src 'self' data: http://localhost:5173 https://fonts.gstatic.com; " +
         "connect-src 'self' http://localhost:3001 ws://localhost:3001 http://localhost:5173 ws://localhost:5173; " +
         "media-src 'self' blob:; " +
         "worker-src 'self' blob:;"
       : // Production: Stricter policy with configured API endpoints
         "default-src 'self'; " +
         "script-src 'self'; " +
-        "style-src 'self' 'unsafe-inline'; " +
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+        "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
         "img-src 'self' data: blob:; " +
-        "font-src 'self' data:; " +
+        "font-src 'self' data: https://fonts.gstatic.com; " +
         `connect-src 'self' https://${prodApiHost} ${prodWsProtocol}${prodWsHost}; ` +
         "media-src 'self' blob:; " +
         "worker-src 'self' blob:;";

@@ -1,0 +1,566 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.1.0)'
+        required: true
+      channel:
+        description: 'Release channel'
+        required: true
+        default: 'stable'
+        type: choice
+        options:
+          - stable
+          - beta
+          - canary
+      rollout_percentage:
+        description: 'Initial rollout percentage (0-100)'
+        required: true
+        default: '10'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '8'
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write  # For OIDC signing
+
+jobs:
+  # ============================================================================
+  # Prepare Release
+  # ============================================================================
+  prepare:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      channel: ${{ steps.version.outputs.channel }}
+      rollout: ${{ steps.version.outputs.rollout }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine version and channel
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "channel=${{ github.event.inputs.channel }}" >> $GITHUB_OUTPUT
+            echo "rollout=${{ github.event.inputs.rollout_percentage }}" >> $GITHUB_OUTPUT
+          else
+            # Extract version from tag (v1.2.3 -> 1.2.3)
+            VERSION=${GITHUB_REF_NAME#v}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            
+            # Determine channel from version
+            if [[ "$VERSION" == *"-beta"* ]]; then
+              echo "channel=beta" >> $GITHUB_OUTPUT
+              echo "rollout=100" >> $GITHUB_OUTPUT
+            elif [[ "$VERSION" == *"-canary"* ]]; then
+              echo "channel=canary" >> $GITHUB_OUTPUT
+              echo "rollout=100" >> $GITHUB_OUTPUT
+            else
+              echo "channel=stable" >> $GITHUB_OUTPUT
+              echo "rollout=10" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  # ============================================================================
+  # Build Desktop Apps
+  # ============================================================================
+  build-desktop:
+    name: Build Desktop (${{ matrix.os }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: darwin
+            arch: universal
+          - os: windows-latest
+            platform: win32
+            arch: x64
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # macOS Code Signing
+      - name: Import macOS signing certificate
+        if: matrix.os == 'macos-latest'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          MACOS_KEYCHAIN_PWD: ${{ secrets.MACOS_KEYCHAIN_PWD }}
+        run: |
+          if [ -n "$MACOS_CERTIFICATE" ]; then
+            echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
+            
+            # Create temporary keychain
+            security create-keychain -p "$MACOS_KEYCHAIN_PWD" build.keychain
+            security default-keychain -s build.keychain
+            security unlock-keychain -p "$MACOS_KEYCHAIN_PWD" build.keychain
+            security import certificate.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MACOS_KEYCHAIN_PWD" build.keychain
+            
+            rm certificate.p12
+          fi
+
+      # Windows Code Signing
+      - name: Setup Windows signing
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PWD: ${{ secrets.WINDOWS_CERTIFICATE_PWD }}
+        run: |
+          if ($env:WINDOWS_CERTIFICATE) {
+            $certBytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+            [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\certificate.pfx", $certBytes)
+            echo "CSC_LINK=$env:RUNNER_TEMP\certificate.pfx" >> $env:GITHUB_ENV
+            echo "CSC_KEY_PASSWORD=$env:WINDOWS_CERTIFICATE_PWD" >> $env:GITHUB_ENV
+          }
+
+      - name: Build desktop app
+        run: pnpm --filter @railgun/desktop build:${{ matrix.platform == 'darwin' && 'mac' || matrix.platform == 'win32' && 'win' || 'linux' }}
+        env:
+          # For notarization
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PWD: ${{ secrets.APPLE_ID_PWD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Compute checksums
+        id: checksums
+        shell: bash
+        run: |
+          cd apps/desktop/release
+          
+          # Find artifacts
+          for file in *.dmg *.zip *.exe *.AppImage *.deb; do
+            if [ -f "$file" ]; then
+              SHA256=$(shasum -a 256 "$file" | cut -d ' ' -f 1)
+              echo "Found: $file (sha256: $SHA256)"
+              
+              # Save checksum to file
+              echo "$SHA256  $file" >> checksums.txt
+              
+              # Output for manifest
+              FILENAME=$(basename "$file")
+              echo "${FILENAME}_sha256=$SHA256" >> $GITHUB_OUTPUT
+            fi
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+            apps/desktop/release/checksums.txt
+          if-no-files-found: error
+
+  # ============================================================================
+  # Sign Artifacts with Sigstore
+  # ============================================================================
+  sign-artifacts:
+    name: Sign Artifacts
+    needs: [prepare, build-desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign artifacts with cosign
+        run: |
+          mkdir -p signed
+          
+          # Sign each artifact's checksum with cosign (for audit/provenance)
+          for dir in artifacts/desktop-*; do
+            if [ -d "$dir" ]; then
+              for file in "$dir"/*.dmg "$dir"/*.zip "$dir"/*.exe "$dir"/*.AppImage "$dir"/*.deb; do
+                if [ -f "$file" ]; then
+                  FILENAME=$(basename "$file")
+                  SHA256=$(shasum -a 256 "$file" | cut -d ' ' -f 1)
+                  
+                  # Sign the checksum with cosign
+                  echo "$SHA256" > "signed/${FILENAME}.sha256"
+                  cosign sign-blob --yes \
+                    --oidc-issuer https://token.actions.githubusercontent.com \
+                    --output-signature "signed/${FILENAME}.cosign.sig" \
+                    --output-certificate "signed/${FILENAME}.pem" \
+                    "signed/${FILENAME}.sha256"
+                  
+                  # Copy artifact to signed folder
+                  cp "$file" "signed/"
+                fi
+              done
+            fi
+          done
+
+      - name: Generate RSA signatures for auto-updater
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.RAILGUN_UPDATE_PRIVATE_KEY }}
+        run: |
+          # If RSA private key is available, generate RSA signatures
+          if [ -n "$UPDATE_SIGNING_KEY" ]; then
+            echo "Generating RSA signatures for auto-updater..."
+            echo "$UPDATE_SIGNING_KEY" > /tmp/update-private-key.pem
+            
+            for sha256_file in signed/*.sha256; do
+              if [ -f "$sha256_file" ]; then
+                FILENAME=$(basename "$sha256_file" .sha256)
+                # Create RSA signature of the SHA256 hash
+                openssl dgst -sha256 -sign /tmp/update-private-key.pem \
+                  -out "signed/${FILENAME}.rsa.sig" \
+                  "$sha256_file"
+                # Also create base64 encoded version for manifest
+                base64 -w0 "signed/${FILENAME}.rsa.sig" > "signed/${FILENAME}.sig"
+              fi
+            done
+            
+            # Clean up private key
+            rm -f /tmp/update-private-key.pem
+          else
+            echo "No RSA signing key configured - using cosign signatures only"
+            # Copy cosign signatures as fallback
+            for sig_file in signed/*.cosign.sig; do
+              if [ -f "$sig_file" ]; then
+                FILENAME=$(basename "$sig_file" .cosign.sig)
+                cp "$sig_file" "signed/${FILENAME}.sig"
+              fi
+            done
+          fi
+
+      - name: Upload signed artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-artifacts
+          path: signed/
+
+  # ============================================================================
+  # Generate Update Manifest
+  # ============================================================================
+  generate-manifest:
+    name: Generate Manifest
+    needs: [prepare, sign-artifacts]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download signed artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: signed-artifacts
+          path: signed
+
+      - name: Generate update manifest
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          CHANNEL: ${{ needs.prepare.outputs.channel }}
+          ROLLOUT: ${{ needs.prepare.outputs.rollout }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          mkdir -p manifests
+          
+          # Generate artifact entries
+          ARTIFACTS="[]"
+          
+          for file in signed/*.dmg signed/*.zip signed/*.exe signed/*.AppImage signed/*.deb; do
+            if [ -f "$file" ]; then
+              FILENAME=$(basename "$file")
+              SHA256=$(cat "signed/${FILENAME}.sha256")
+              SIGNATURE=$(base64 -w0 "signed/${FILENAME}.sig")
+              SIZE=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file")
+              
+              # Determine platform and arch from filename
+              case "$FILENAME" in
+                *mac*universal*|*darwin*)
+                  PLATFORM="darwin"
+                  ARCH="universal"
+                  ;;
+                *mac*arm64*)
+                  PLATFORM="darwin"
+                  ARCH="arm64"
+                  ;;
+                *mac*x64*|*mac*)
+                  PLATFORM="darwin"
+                  ARCH="x64"
+                  ;;
+                *win*|*.exe)
+                  PLATFORM="win32"
+                  ARCH="x64"
+                  ;;
+                *linux*|*.AppImage|*.deb)
+                  PLATFORM="linux"
+                  ARCH="x64"
+                  ;;
+                *)
+                  continue
+                  ;;
+              esac
+              
+              URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${FILENAME}"
+              
+              ARTIFACT=$(cat <<EOF
+          {
+            "platform": "$PLATFORM",
+            "arch": "$ARCH",
+            "url": "$URL",
+            "size": $SIZE,
+            "sha256": "$SHA256",
+            "signature": "$SIGNATURE"
+          }
+          EOF
+              )
+              
+              ARTIFACTS=$(echo "$ARTIFACTS" | jq --argjson artifact "$ARTIFACT" '. + [$artifact]')
+            fi
+          done
+          
+          # Generate release notes from CHANGELOG or git
+          RELEASE_NOTES="Release v${VERSION}"
+          if [ -f "CHANGELOG.md" ]; then
+            RELEASE_NOTES=$(awk "/## \[${VERSION}\]|## ${VERSION}/,/## \[|## [0-9]/" CHANGELOG.md | head -50 | tail -n +2)
+          fi
+          
+          # Create manifest
+          cat > "manifests/${CHANNEL}.json" <<EOF
+          {
+            "version": "${VERSION}",
+            "channel": "${CHANNEL}",
+            "releaseDate": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "releaseNotes": $(echo "$RELEASE_NOTES" | jq -R -s .),
+            "mandatory": false,
+            "rolloutPercentage": ${ROLLOUT},
+            "featureFlags": {},
+            "killSwitch": false,
+            "artifacts": ${ARTIFACTS}
+          }
+          EOF
+          
+          echo "Generated manifest:"
+          cat "manifests/${CHANNEL}.json" | jq .
+
+      - name: Upload manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-manifest
+          path: manifests/
+
+  # ============================================================================
+  # Create GitHub Release
+  # ============================================================================
+  create-release:
+    name: Create GitHub Release
+    needs: [prepare, sign-artifacts, generate-manifest]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download signed artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: signed-artifacts
+          path: signed
+
+      - name: Download manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: update-manifest
+          path: manifests
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          CHANNEL="${{ needs.prepare.outputs.channel }}"
+          
+          cat > release_notes.md <<EOF
+          ## Rail Gun v${VERSION}
+          
+          **Channel:** ${CHANNEL}
+          **Rollout:** ${{ needs.prepare.outputs.rollout }}%
+          
+          ### Downloads
+          
+          | Platform | Download |
+          |----------|----------|
+          | macOS | Rail-Gun-${VERSION}-mac-universal.dmg |
+          | Windows | Rail-Gun-${VERSION}-win-x64.exe |
+          | Linux | Rail-Gun-${VERSION}-linux-x64.AppImage |
+          
+          ### Verification
+          
+          All artifacts are signed using [Sigstore](https://sigstore.dev/).
+          
+          To verify:
+          \`\`\`bash
+          # Install cosign
+          brew install cosign  # or your package manager
+          
+          # Download artifact and signature
+          cosign verify-blob \\
+            --certificate Rail-Gun-${VERSION}-mac-universal.dmg.pem \\
+            --signature Rail-Gun-${VERSION}-mac-universal.dmg.sig \\
+            --certificate-identity-regexp "https://github.com/${{ github.repository }}/*" \\
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \\
+            Rail-Gun-${VERSION}-mac-universal.dmg.sha256
+          \`\`\`
+          
+          ### Checksums
+          
+          See \`checksums.txt\` in the release assets.
+          EOF
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Rail Gun v${{ needs.prepare.outputs.version }}
+          tag_name: v${{ needs.prepare.outputs.version }}
+          body_path: release_notes.md
+          draft: ${{ needs.prepare.outputs.channel != 'stable' }}
+          prerelease: ${{ needs.prepare.outputs.channel != 'stable' }}
+          files: |
+            signed/*.dmg
+            signed/*.zip
+            signed/*.exe
+            signed/*.AppImage
+            signed/*.deb
+            signed/*.sha256
+            signed/*.sig
+            signed/*.pem
+            manifests/*.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================================================
+  # Deploy Update Manifest to CDN
+  # ============================================================================
+  deploy-manifest:
+    name: Deploy Update Manifest
+    needs: [prepare, generate-manifest, create-release]
+    runs-on: ubuntu-latest
+    if: needs.prepare.outputs.channel == 'stable' || needs.prepare.outputs.channel == 'beta'
+    steps:
+      - name: Download manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: update-manifest
+          path: manifests
+
+      # Deploy to your update server/CDN
+      # Uncomment the option that matches your infrastructure
+
+      # Option 1: AWS S3
+      - name: Configure AWS Credentials
+        if: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Deploy to S3
+        if: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
+        run: |
+          aws s3 cp manifests/${{ needs.prepare.outputs.channel }}.json \
+            s3://${{ secrets.AWS_S3_BUCKET || 'update.railgun.app' }}/manifest/${{ needs.prepare.outputs.channel }}.json \
+            --cache-control "max-age=300"
+
+      # Option 2: Cloudflare R2 (uncomment if using Cloudflare)
+      # - name: Deploy to Cloudflare R2
+      #   if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+      #   uses: cloudflare/wrangler-action@v3
+      #   with:
+      #     apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      #     command: r2 object put railgun-updates/manifest/${{ needs.prepare.outputs.channel }}.json --file manifests/${{ needs.prepare.outputs.channel }}.json
+
+      # Option 3: GitHub Pages (for simple setup - uses release artifacts)
+      - name: Upload manifest to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.prepare.outputs.version }}
+          files: |
+            manifests/${{ needs.prepare.outputs.channel }}.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log deployment
+        run: |
+          echo "Manifest deployed for channel: ${{ needs.prepare.outputs.channel }}"
+          echo "Version: ${{ needs.prepare.outputs.version }}"
+          echo "Rollout: ${{ needs.prepare.outputs.rollout }}%"
+          echo ""
+          echo "Manifest URL (GitHub Release):"
+          echo "https://github.com/${{ github.repository }}/releases/download/v${{ needs.prepare.outputs.version }}/${{ needs.prepare.outputs.channel }}.json"
+
+  # ============================================================================
+  # Notify
+  # ============================================================================
+  notify:
+    name: Notify
+    needs: [prepare, create-release, deploy-manifest]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Send notification
+        run: |
+          STATUS="${{ needs.create-release.result }}"
+          VERSION="${{ needs.prepare.outputs.version }}"
+          CHANNEL="${{ needs.prepare.outputs.channel }}"
+          
+          if [ "$STATUS" = "success" ]; then
+            echo "✅ Release v${VERSION} (${CHANNEL}) published successfully"
+          else
+            echo "❌ Release v${VERSION} (${CHANNEL}) failed"
+          fi
+          
+          # Add Slack/Discord webhook notification here
+          # if [ -n "${{ secrets.SLACK_WEBHOOK }}" ]; then
+          #   curl -X POST -H 'Content-type: application/json' \
+          #     --data "{\"text\":\"Rail Gun v${VERSION} (${CHANNEL}) - ${STATUS}\"}" \
+          #     "${{ secrets.SLACK_WEBHOOK }}"
+          # fi

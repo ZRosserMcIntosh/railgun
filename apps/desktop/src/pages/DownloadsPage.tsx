@@ -57,17 +57,25 @@ const GlobeIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// Get download URL for a platform
-// In production, replace these with your CDN/GitHub release URLs
+// GitHub repository info for download URLs
+const GITHUB_REPO = 'ZRosserMcIntosh/railgun';
+const VERSION = import.meta.env.VITE_APP_VERSION || '0.1.0';
+const RELEASES_BASE = `https://github.com/${GITHUB_REPO}/releases`;
+
+// Get download URL for a platform - points to GitHub Releases
 function getDownloadUrl(platformId: string): string | null {
   const urls: Record<string, string> = {
     // Universal package with all platforms
-    'universal': '/downloads/Rail-Gun-Universal.zip',
+    'universal': `${RELEASES_BASE}/download/v${VERSION}/Rail-Gun-${VERSION}-Universal.zip`,
     // Individual platform downloads
-    'windows': '/downloads/Rail-Gun-Windows-Setup.zip',
-    'mac-arm': '/downloads/Rail-Gun-macOS-ARM.zip',
+    'windows': `${RELEASES_BASE}/download/v${VERSION}/Rail-Gun-${VERSION}-win-x64.exe`,
+    'mac-arm': `${RELEASES_BASE}/download/v${VERSION}/Rail-Gun-${VERSION}-mac-universal.dmg`,
+    'mac-intel': `${RELEASES_BASE}/download/v${VERSION}/Rail-Gun-${VERSION}-mac-universal.dmg`,
+    'linux': `${RELEASES_BASE}/download/v${VERSION}/Rail-Gun-${VERSION}-linux-x86_64.AppImage`,
+    // Latest release page as fallback
+    'latest': `${RELEASES_BASE}/latest`,
   };
-  return urls[platformId] || null;
+  return urls[platformId] || `${RELEASES_BASE}/latest`;
 }
 
 interface DownloadOption {

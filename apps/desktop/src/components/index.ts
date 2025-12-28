@@ -12,4 +12,5 @@ export { default as MessageContextMenu } from './MessageContextMenu';
 export { default as MentionInput, parseMentions, highlightMentions } from './MentionInput';
 export { default as SafetyNumber } from './SafetyNumber';
 export { default as DeviceManagement } from './DeviceManagement';
+export { QRLoginModal } from './QRLoginModal';
 export * from './ui';
