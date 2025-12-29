@@ -198,6 +198,16 @@ export interface RailGunCrypto {
 
   /** Clear all crypto state (logout/account deletion). */
   clearAllData(): Promise<void>;
+
+  /**
+   * CRYPTO-SHRED: Permanently destroy all cryptographic key material.
+   * 
+   * This is the NUCLEAR option - use for account deletion or panic button.
+   * After calling this, ALL encrypted data becomes PERMANENTLY UNRECOVERABLE.
+   * 
+   * Performs multi-pass secure overwrite, master key deletion, and memory zeroing.
+   */
+  cryptoShred(): Promise<void>;
 }
 
 // ============================================================================
@@ -311,6 +321,19 @@ export interface LocalKeyStore {
 
   /** Clear all data. */
   clear(): Promise<void>;
+
+  /**
+   * CRYPTO-SHRED: Securely destroy all key material.
+   * 
+   * Performs military-grade destruction:
+   * 1. Overwrites each key with random data (multiple passes)
+   * 2. Clears IndexedDB
+   * 3. Deletes master key from OS keychain
+   * 4. Zeros in-memory keys
+   * 
+   * After calling this, ALL encrypted data is PERMANENTLY UNRECOVERABLE.
+   */
+  cryptoShred(): Promise<void>;
 }
 
 /**

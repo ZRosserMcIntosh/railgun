@@ -17,8 +17,7 @@
     "node_modules",
     "dist",
     "**/*.test.ts",
-    "**/*.spec.ts",
-    "src/billing/**/*"
+    "**/*.spec.ts"
   ],
   "references": [
     { "path": "../../packages/shared" }

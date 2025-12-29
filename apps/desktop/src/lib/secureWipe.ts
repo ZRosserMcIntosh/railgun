@@ -372,19 +372,31 @@ async function generateRandomString(length: number): Promise<string> {
 // ==================== Cryptographic Key Destruction ====================
 
 /**
- * Destroy all local cryptographic keys
- * This makes any encrypted data permanently unrecoverable
+ * Destroy all local cryptographic keys via the RailGunCrypto cryptoShred method.
+ * This uses the proper crypto layer which handles:
+ * - Multi-pass secure overwrite of IndexedDB keys
+ * - Master key deletion from OS keychain  
+ * - In-memory key zeroing
  */
 async function destroyLocalCryptoKeys(
-  passes: number,
+  _passes: number,
   onProgress?: (keyType: string) => void
 ): Promise<void> {
   try {
-    const sodium = await import('libsodium-wrappers');
-    await sodium.ready;
+    // Import the crypto module dynamically to avoid circular deps
+    const { getCrypto } = await import('../crypto');
+    const crypto = getCrypto();
     
-    // Key types to destroy
-    const keyTypes = [
+    onProgress?.('RailGunCrypto keys');
+    
+    // Use the proper crypto-shred method which handles all key material
+    await crypto.cryptoShred();
+    
+    onProgress?.('All crypto keys destroyed');
+    
+    // LEGACY: Also try to clean up any legacy localStorage keys
+    // (in case they exist from older versions)
+    const legacyKeyTypes = [
       'identity_private_key',
       'identity_public_key', 
       'signed_prekey_private',
@@ -396,27 +408,23 @@ async function destroyLocalCryptoKeys(
       'message_keys',
     ];
     
-    for (const keyType of keyTypes) {
+    for (const keyType of legacyKeyTypes) {
       const key = localStorage.getItem(keyType);
       if (key) {
-        // Overwrite with secure random multiple times
-        for (let i = 0; i < passes; i++) {
-          const randomKey = sodium.randombytes_buf(key.length);
-          localStorage.setItem(keyType, sodium.to_base64(randomKey));
-        }
+        const sodium = await import('libsodium-wrappers');
+        await sodium.ready;
         
-        // Zero out
+        // Overwrite with secure random
+        const randomKey = sodium.default.randombytes_buf(key.length);
+        localStorage.setItem(keyType, sodium.default.to_base64(randomKey));
         localStorage.setItem(keyType, '0'.repeat(key.length));
-        
-        // Remove
         localStorage.removeItem(keyType);
         
-        onProgress?.(keyType);
+        onProgress?.(`Legacy key: ${keyType}`);
       }
     }
     
-    // Destroy any keys in memory by forcing garbage collection
-    // (This is best-effort in JavaScript)
+    // Force garbage collection if available
     if (typeof global !== 'undefined' && (global as any).gc) {
       (global as any).gc();
     }

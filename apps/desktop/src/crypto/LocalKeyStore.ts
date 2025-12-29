@@ -79,6 +79,17 @@ export class LocalKeyStoreImpl implements LocalKeyStore {
   }
 
   /**
+   * Get the initialized sodium instance.
+   * Used by other crypto modules that need sodium functions.
+   */
+  async getSodium(): Promise<SodiumType> {
+    if (!sodium) {
+      await initSodium();
+    }
+    return sodium!;
+  }
+
+  /**
    * Get a value from the store.
    */
   async get(key: string): Promise<Uint8Array | null> {
@@ -368,6 +379,96 @@ export class LocalKeyStoreImpl implements LocalKeyStore {
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve();
     });
+  }
+
+  /**
+   * CRYPTO-SHRED: Securely destroy all key material.
+   * 
+   * The REAL security here is destroying the encryption keys - without them,
+   * the ciphertext is useless. Storage deletion is defense-in-depth.
+   * 
+   * Steps:
+   * 1. Overwrites stored ciphertext (best-effort, may not defeat SSD wear leveling)
+   * 2. Deletes IndexedDB database
+   * 3. Deletes the master key from OS keychain (THIS IS THE CRITICAL STEP)
+   * 4. Zeros in-memory key material
+   * 
+   * SECURITY NOTE: Multi-pass overwrite is largely ceremonial on modern storage.
+   * The actual guarantee is: key material is destroyed, making ciphertext undecryptable.
+   */
+  async cryptoShred(): Promise<void> {
+    if (!sodium) {
+      await initSodium();
+    }
+    const s = sodium!;
+    
+    console.log('[LocalKeyStore] 🔥 CRYPTO-SHRED initiated');
+    
+    try {
+      // Step 1: Get all keys and overwrite them with random data (3 passes)
+      if (this.initialized && this.db && this.masterKey) {
+        const allKeys = await this.listKeysFromDb('');
+        
+        for (const key of allKeys) {
+          // 3 passes of random overwrite
+          for (let pass = 0; pass < 3; pass++) {
+            const randomData = s.randombytes_buf(256); // Overwrite with 256 random bytes
+            const encrypted = this.encrypt(randomData);
+            await this.writeToDb(key, encrypted);
+          }
+          
+          // Final: overwrite with zeros
+          const zeros = new Uint8Array(256).fill(0);
+          const encryptedZeros = this.encrypt(zeros);
+          await this.writeToDb(key, encryptedZeros);
+          
+          // Delete the key
+          await this.deleteFromDb(key);
+        }
+        
+        console.log(`[LocalKeyStore] 🔥 Overwritten and deleted ${allKeys.length} keys`);
+      }
+      
+      // Step 2: Clear the entire IndexedDB store
+      if (this.db) {
+        await this.clearDb();
+        this.db.close();
+        this.db = null;
+        
+        // Delete the entire database
+        await new Promise<void>((resolve, reject) => {
+          const request = indexedDB.deleteDatabase(LocalKeyStoreImpl.DB_NAME);
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve();
+        });
+        
+        console.log('[LocalKeyStore] 🔥 IndexedDB database deleted');
+      }
+      
+      // Step 3: Delete master key from OS keychain
+      if (typeof window !== 'undefined' && window.electronAPI?.secureStore) {
+        await window.electronAPI.secureStore.delete(LocalKeyStoreImpl.MASTER_KEY_ID);
+        console.log('[LocalKeyStore] 🔥 Master key deleted from OS keychain');
+      }
+      
+      // Step 4: Zero out in-memory master key
+      if (this.masterKey) {
+        // Overwrite with random first, then zeros
+        const randomOverwrite = s.randombytes_buf(this.masterKey.length);
+        this.masterKey.set(randomOverwrite);
+        this.masterKey.fill(0);
+        this.masterKey = null;
+        console.log('[LocalKeyStore] 🔥 In-memory master key zeroed');
+      }
+      
+      this.initialized = false;
+      
+      console.log('[LocalKeyStore] 🔥 CRYPTO-SHRED complete - all key material destroyed');
+      
+    } catch (error) {
+      console.error('[LocalKeyStore] CRYPTO-SHRED error:', error);
+      throw error;
+    }
   }
 }
 

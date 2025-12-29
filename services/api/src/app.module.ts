@@ -11,6 +11,8 @@ import { CommunitiesModule } from './communities/communities.module';
 import { CryptoModule } from './crypto/crypto.module';
 import { RedisModule } from './redis/redis.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { BillingModule } from './billing/billing.module';
+import { VoiceModule } from './voice/voice.module';
 
 @Module({
   imports: [
@@ -85,6 +87,8 @@ import { AnalyticsModule } from './analytics/analytics.module';
     CommunitiesModule,
     CryptoModule,
     AnalyticsModule,
+    BillingModule,
+    VoiceModule,
   ],
 })
 export class AppModule {}

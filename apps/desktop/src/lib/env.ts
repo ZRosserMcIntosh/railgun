@@ -86,18 +86,31 @@ export const config = {
    * Full API URL with version prefix
    */
   get apiUrl(): string {
-    return `${this.apiBaseUrl}/api/v1`;
+    const base = this.apiBaseUrl.replace(/\/$/, '');
+    return base.endsWith('/api/v1') ? base : `${base}/api/v1`;
   },
 
   /**
    * WebSocket URL
    */
   get wsUrl(): string {
-    return getEnvValue(
+    const explicit = getEnvValue(
       'VITE_WS_URL',
       '__RAILGUN_WS_URL__',
-      'http://localhost:3001'
-    ) + '/ws';
+      ''
+    );
+
+    if (explicit) {
+      return explicit.replace(/\/$/, '').endsWith('/ws')
+        ? explicit.replace(/\/$/, '')
+        : `${explicit.replace(/\/$/, '')}/ws`;
+    }
+
+    // Derive from API base URL
+    const apiOrigin = new URL(this.apiBaseUrl).origin;
+    const wsProtocol = apiOrigin.startsWith('https://') ? 'wss://' : 'ws://';
+    const host = apiOrigin.replace(/^https?:\/\//, '');
+    return `${wsProtocol}${host}/ws`;
   },
 
   /**

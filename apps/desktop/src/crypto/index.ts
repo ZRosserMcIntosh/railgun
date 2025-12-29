@@ -22,9 +22,10 @@
  * ```
  */
 
-// Use SimpleCrypto (libsodium-only) for browser/renderer compatibility
+// Use DevCrypto (libsodium-only) for browser/renderer compatibility
 // The full Signal Protocol implementation requires running in Electron main process
-export { getCrypto, initCrypto, SimpleCryptoImpl } from './SimpleCrypto';
+// NOTE: DevCrypto is a development shim - see SimpleCrypto.ts header for limitations
+export { getCrypto, initCrypto, DevCryptoImpl, SimpleCryptoImpl } from './SimpleCrypto';
 
 // Types (exported for use by other modules)
 export type {
@@ -41,3 +42,20 @@ export type { LocalKeyStore, SignalWrapper } from './types';
 
 // Storage key constants
 export { STORAGE_KEYS } from './types';
+
+// Safety number types and utilities
+export type {
+  SafetyNumber,
+  IdentityStatus,
+  StoredIdentity,
+} from './SafetyNumber';
+
+export {
+  computeSafetyNumber,
+  computeSafetyNumberFromBase64,
+  formatSafetyNumber,
+  getSafetyNumberQRData,
+  verifySafetyNumberQR,
+  createIdentityStore,
+  createHashFunction,
+} from './SafetyNumber';

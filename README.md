@@ -1,45 +1,24 @@
 # Rail Gun 🔫
 
-End-to-end encrypted, Discord-like desktop messaging application.
+End-to-end encrypted, Discord-like messaging application with Signal Protocol encryption.
 
 ## Features
 
-- **End-to-End Encryption**: All messages are encrypted using the Signal protocol
-- **Communities**: Create and join communities with multiple channels
-- **Direct Messages**: Private 1:1 and group conversations
-- **Presence**: See when your friends are online
-- **Cross-Platform**: Native desktop app for macOS (Windows/Linux coming soon)
+- **End-to-End Encryption**: Signal Protocol (X3DH + Double Ratchet), Curve25519, ChaCha20-Poly1305
+- **Communities**: Create and join servers with multiple channels
+- **Direct Messages**: Private 1:1 encrypted conversations
+- **Voice & Video**: Real-time voice chat (video for Pro users)
+- **Decentralized Exchange**: Built-in crypto swaps via THORChain
+- **Cross-Platform**: Desktop (macOS, Windows, Linux)
 
-## Architecture
-
-```
-railgun/
-├── packages/
-│   └── shared/          # Shared TypeScript types, DTOs, protocol enums
-├── services/
-│   └── api/             # HTTP + WebSocket backend (NestJS)
-├── apps/
-│   └── desktop/         # Electron + React macOS client
-└── infra/               # Docker, migrations, CI scripts
-```
-
-## Security Model
-
-- **Device Identity Keys**: Generated on first run, private key never leaves device
-- **X3DH Key Exchange**: Secure session establishment using Signal protocol
-- **Double Ratchet**: Forward secrecy for all messages
-- **Server Blindness**: Server only sees encrypted blobs and routing metadata
-
-## Prerequisites
-
-- Node.js 20+
-- pnpm 9+
-- PostgreSQL 15+
-- Redis 7+
-
-## Getting Started
+## Quick Start
 
 ```bash
+# Prerequisites: Node.js 20+, pnpm 9+, Docker
+
+# Start infrastructure (Postgres + Redis)
+cd infra && docker-compose up -d
+
 # Install dependencies
 pnpm install
 
@@ -48,42 +27,56 @@ pnpm --filter @railgun/shared build
 
 # Start development
 pnpm dev
-
-# Run tests
-pnpm test
-
-# Build for production
-pnpm build
 ```
 
-## Development
+For detailed setup instructions, see [docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md).
 
-### Project Structure
+## Documentation
 
-- `packages/shared`: Common types, DTOs, enums, and utilities
-- `services/api`: Backend API server with WebSocket support
-- `apps/desktop`: Electron desktop application
+| Document | Description |
+|----------|-------------|
+| [Getting Started](./docs/GETTING_STARTED.md) | Installation, setup, running the app |
+| [Security](./docs/SECURITY.md) | Cryptographic protocols and security model |
+| [Deployment](./docs/DEPLOYMENT.md) | Production deployment and releases |
+| [Features](./docs/FEATURES.md) | Voice, DMs, communities documentation |
+| [Architecture](./docs/ARCHITECTURE.md) | System design and infrastructure |
+| [API Reference](./docs/API.md) | REST and WebSocket API docs |
+| [DEX](./docs/DEX.md) | Decentralized exchange documentation |
+| [Billing](./docs/BILLING.md) | Pro subscriptions and entitlements |
 
-### Commands
+## Project Structure
+
+```
+railgun/
+├── packages/shared/     # Shared TypeScript types, DTOs
+├── services/api/        # NestJS backend (HTTP + WebSocket)
+├── apps/desktop/        # Electron + React desktop client
+├── apps/web/            # Next.js web client
+├── railgun-site/        # Marketing website
+└── infra/               # Docker, deployment configs
+```
+
+## Security Model
+
+| Feature | Implementation |
+|---------|----------------|
+| Key Exchange | X3DH (Extended Triple Diffie-Hellman) |
+| Message Encryption | Double Ratchet + ChaCha20-Poly1305 |
+| Key Storage | OS Keychain (macOS), DPAPI (Windows) |
+| Server Access | Encrypted blobs only (server-blind) |
+
+See [docs/SECURITY.md](./docs/SECURITY.md) for full details.
+
+## Development Commands
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev` | Start all packages in development mode |
-| `pnpm dev:api` | Start only the API server |
-| `pnpm dev:desktop` | Start only the desktop app |
+| `pnpm dev` | Start all services in dev mode |
+| `pnpm dev:api` | Start API server only |
+| `pnpm dev:desktop` | Start desktop app only |
 | `pnpm build` | Build all packages |
+| `pnpm build:mac` | Build macOS installer |
 | `pnpm test` | Run all tests |
-| `pnpm lint` | Lint all packages |
-| `pnpm format` | Format all files |
-
-## Implementation Stages
-
-- [x] Stage 0: Repository & Tooling
-- [ ] Stage 1: Minimal Backend (No Encryption)
-- [ ] Stage 2: Desktop Skeleton (No Encryption)
-- [ ] Stage 3: Key Infrastructure & 1:1 E2E DMs
-- [ ] Stage 4: Encrypted Communities & Channels
-- [ ] Stage 5: UX Polish & macOS Packaging
 
 ## License
 

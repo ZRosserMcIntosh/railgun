@@ -92,6 +92,18 @@ export const FREE_TIER_LIMITS = {
    * false = no screen sharing for free users.
    */
   SCREEN_SHARE_ENABLED: false,
+  
+  // ==================== VOICE CHAT LIMITS ====================
+  
+  /**
+   * Maximum participants in a voice channel for free communities.
+   */
+  MAX_VOICE_PARTICIPANTS: 8,
+  
+  /**
+   * Maximum audio bitrate for free users (kbps).
+   */
+  MAX_AUDIO_BITRATE: 32, // kbps
 } as const;
 
 // ============================================================================
@@ -132,8 +144,8 @@ export const PLAN_CAPABILITIES: Record<Plan, Set<Capability>> = {
     Capability.LARGE_FILES,
     Capability.VIDEO_CALLING,
     Capability.LONG_VIDEO,
+    Capability.SCREEN_SHARE,
     // Future capabilities can be added here
-    // Capability.SCREEN_SHARE,
     // Capability.PRIORITY_RELAY,
   ]),
 };

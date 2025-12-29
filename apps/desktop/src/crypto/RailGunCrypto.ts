@@ -22,6 +22,14 @@ import type {
 } from './types';
 import { LocalKeyStoreImpl, createLocalKeyStore } from './LocalKeyStore';
 import { SignalWrapperImpl, createSignalWrapper } from './SignalWrapper';
+import {
+  computeSafetyNumberFromBase64,
+  createIdentityStore,
+  createHashFunction,
+  type SafetyNumber,
+  type IdentityStatus,
+  type StoredIdentity,
+} from './SafetyNumber';
 
 // ============================================================================
 // RAIL GUN CRYPTO IMPLEMENTATION
@@ -36,6 +44,8 @@ export class RailGunCryptoImpl implements RailGunCrypto {
   private signal: SignalWrapperImpl;
   private initialized = false;
   private localUserId: string | null = null;
+  private identityStore: ReturnType<typeof createIdentityStore> | null = null;
+  private hashFunction: ((data: Uint8Array) => Uint8Array) | null = null;
 
   constructor() {
     this.keyStore = createLocalKeyStore() as LocalKeyStoreImpl;
@@ -54,6 +64,14 @@ export class RailGunCryptoImpl implements RailGunCrypto {
 
     // Initialize Signal wrapper (loads/generates identity keys)
     await this.signal.initialize();
+
+    // Initialize identity store for TOFU tracking
+    this.identityStore = createIdentityStore(this.keyStore);
+
+    // Initialize hash function for safety numbers
+    // We get this from the keyStore's sodium instance
+    const sodium = await this.keyStore.getSodium();
+    this.hashFunction = createHashFunction(sodium);
 
     this.initialized = true;
     console.log('[RailGunCrypto] Initialized');
@@ -354,58 +372,187 @@ export class RailGunCryptoImpl implements RailGunCrypto {
 
   /**
    * Compute safety number for identity verification.
+   * Returns a 60-digit numeric string that both parties should see identically.
    */
-  computeSafetyNumber(peerUserId: string, _peerIdentityKey: string): string {
+  computeSafetyNumber(peerUserId: string, peerIdentityKey: string): string {
     this.ensureInitialized();
-    // TODO: Implement safety number computation
-    // This would use Signal's Fingerprint class
-    return `SAFETY:${peerUserId.substring(0, 8)}`;
+    
+    if (!this.hashFunction || !this.localUserId) {
+      throw new Error('Crypto not fully initialized');
+    }
+
+    // Get our identity key
+    const localIdentityKey = this.getIdentityPublicKey();
+    if (!localIdentityKey) {
+      throw new Error('Local identity key not available');
+    }
+
+    const safetyNumber = computeSafetyNumberFromBase64(
+      this.localUserId,
+      localIdentityKey,
+      peerUserId,
+      peerIdentityKey,
+      this.hashFunction
+    );
+
+    return safetyNumber.numeric;
   }
 
   /**
-   * Mark an identity as verified.
+   * Get full safety number object including QR data.
    */
-  async markIdentityVerified(peerUserId: string): Promise<void> {
+  async getSafetyNumberDetails(
+    peerUserId: string,
+    peerIdentityKey: string
+  ): Promise<SafetyNumber> {
     this.ensureInitialized();
-    await this.keyStore.set(
-      `verified:${peerUserId}`,
-      new TextEncoder().encode('true')
+    
+    if (!this.hashFunction || !this.localUserId) {
+      throw new Error('Crypto not fully initialized');
+    }
+
+    const localIdentityKey = this.getIdentityPublicKey();
+    if (!localIdentityKey) {
+      throw new Error('Local identity key not available');
+    }
+
+    return computeSafetyNumberFromBase64(
+      this.localUserId,
+      localIdentityKey,
+      peerUserId,
+      peerIdentityKey,
+      this.hashFunction
     );
   }
 
   /**
-   * Check if identity has changed.
+   * Mark an identity as verified after user confirms safety numbers match.
+   */
+  async markIdentityVerified(peerUserId: string): Promise<void> {
+    this.ensureInitialized();
+    
+    if (!this.identityStore) {
+      throw new Error('Identity store not initialized');
+    }
+
+    await this.identityStore.markVerified(peerUserId);
+    console.log(`[RailGunCrypto] Identity verified for ${peerUserId}`);
+  }
+
+  /**
+   * Check if peer's identity has changed since we last saw them.
+   * This is critical for detecting MITM attacks.
+   * 
+   * Returns detailed status including whether identity changed and previous key.
+   */
+  async checkIdentityStatus(
+    peerUserId: string,
+    currentIdentityKey: string
+  ): Promise<IdentityStatus> {
+    this.ensureInitialized();
+    
+    if (!this.identityStore) {
+      throw new Error('Identity store not initialized');
+    }
+
+    return this.identityStore.checkIdentityStatus(peerUserId, currentIdentityKey);
+  }
+
+  /**
+   * Store or update a peer's identity.
+   * Call this when receiving a key bundle from the server.
+   * 
+   * Returns whether this is a new identity or if it changed.
+   */
+  async storeIdentity(
+    peerUserId: string,
+    identityKey: string
+  ): Promise<{ isNew: boolean; hasChanged: boolean; previousKey?: string }> {
+    this.ensureInitialized();
+    
+    if (!this.identityStore) {
+      throw new Error('Identity store not initialized');
+    }
+
+    const result = await this.identityStore.storeIdentity(peerUserId, identityKey);
+    
+    if (result.hasChanged) {
+      console.warn(
+        `[RailGunCrypto] ⚠️ IDENTITY CHANGED for ${peerUserId}! ` +
+        'This could indicate a security issue or the user reinstalled.'
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Get stored identity for a peer.
+   */
+  async getStoredIdentity(peerUserId: string): Promise<StoredIdentity | null> {
+    this.ensureInitialized();
+    
+    if (!this.identityStore) {
+      throw new Error('Identity store not initialized');
+    }
+
+    return this.identityStore.getStoredIdentity(peerUserId);
+  }
+
+  /**
+   * Check if identity has changed (simple boolean version).
+   * @deprecated Use checkIdentityStatus for more detailed information.
    */
   async hasIdentityChanged(
     peerUserId: string,
     currentIdentityKey: string
   ): Promise<boolean> {
-    this.ensureInitialized();
-
-    const storedKey = await this.keyStore.get(`identity:${peerUserId}`);
-    if (!storedKey) {
-      // First time seeing this identity - store it
-      await this.keyStore.set(
-        `identity:${peerUserId}`,
-        new TextEncoder().encode(currentIdentityKey)
-      );
-      return false;
-    }
-
-    const storedKeyStr = new TextDecoder().decode(storedKey);
-    return storedKeyStr !== currentIdentityKey;
+    const status = await this.checkIdentityStatus(peerUserId, currentIdentityKey);
+    return status.hasStoredIdentity && !status.identityMatches;
   }
 
   // ==================== CLEANUP ====================
 
   /**
    * Clear all crypto data (for logout/account deletion).
+   * Uses basic clear - data may be recoverable with forensics.
    */
   async clearAllData(): Promise<void> {
     await this.keyStore.clear();
     this.initialized = false;
     this.localUserId = null;
     console.log('[RailGunCrypto] Cleared all data');
+  }
+
+  /**
+   * CRYPTO-SHRED: Permanently destroy all cryptographic key material.
+   * 
+   * This is the NUCLEAR option - use for account deletion or panic button.
+   * After calling this, ALL encrypted data becomes PERMANENTLY UNRECOVERABLE.
+   * 
+   * Performs:
+   * 1. Multi-pass secure overwrite of all stored keys
+   * 2. Master key deletion from OS keychain
+   * 3. In-memory key zeroing
+   */
+  async cryptoShred(): Promise<void> {
+    console.log('[RailGunCrypto] 🔥 CRYPTO-SHRED: Initiating permanent key destruction');
+    
+    // First clear identity cache
+    if (this.identityStore) {
+      // Identity store uses keyStore internally, will be wiped
+    }
+    
+    // Execute crypto-shred on the key store
+    await this.keyStore.cryptoShred();
+    
+    // Clear instance state
+    this.initialized = false;
+    this.localUserId = null;
+    this.identityStore = null;
+    this.hashFunction = null;
+    
+    console.log('[RailGunCrypto] 🔥 CRYPTO-SHRED complete - all keys permanently destroyed');
   }
 
   // ==================== HELPERS ====================

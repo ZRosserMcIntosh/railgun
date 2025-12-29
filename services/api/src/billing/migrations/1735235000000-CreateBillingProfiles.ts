@@ -48,7 +48,8 @@ export class CreateBillingProfiles1735235000000 implements MigrationInterface {
         "updatedAt" timestamp NOT NULL DEFAULT now(),
         CONSTRAINT "PK_billing_profiles" PRIMARY KEY ("id"),
         CONSTRAINT "UQ_billing_profiles_userId" UNIQUE ("userId"),
-        CONSTRAINT "UQ_billing_profiles_billingRef" UNIQUE ("billingRef")
+        CONSTRAINT "UQ_billing_profiles_billingRef" UNIQUE ("billingRef"),
+        CONSTRAINT "FK_billing_profiles_user" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE
       );
     `);
 
