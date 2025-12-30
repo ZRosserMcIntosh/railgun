@@ -46,6 +46,12 @@ const ShieldIcon = () => (
   </svg>
 );
 
+const MicMaskIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+  </svg>
+);
+
 const MinimizeIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -120,7 +126,7 @@ interface ActiveCallProps {
 }
 
 export const ActiveCall = ({ minimized = false, onToggleMinimize }: ActiveCallProps) => {
-  const { activeCall, endCall, toggleMute, toggleSpeaker, sendDTMF } = useVoipStore();
+  const { activeCall, endCall, toggleMute, toggleSpeaker, toggleVoiceMaskInCall, sendDTMF } = useVoipStore();
   const [callDuration, setCallDuration] = useState(0);
   const [showDialpad, setShowDialpad] = useState(false);
 
@@ -152,6 +158,11 @@ export const ActiveCall = ({ minimized = false, onToggleMinimize }: ActiveCallPr
             {activeCall.anonymous && (
               <span className="text-green-500" title="Anonymous call">
                 <ShieldIcon />
+              </span>
+            )}
+            {activeCall.voiceMaskEnabled && (
+              <span className="text-purple-500" title="Voice masked">
+                <MicMaskIcon />
               </span>
             )}
           </div>
@@ -208,9 +219,16 @@ export const ActiveCall = ({ minimized = false, onToggleMinimize }: ActiveCallPr
       {/* Call Info */}
       <div className="text-center">
         {activeCall.anonymous && (
-          <div className="flex items-center justify-center gap-2 text-green-500 mb-4">
+          <div className="flex items-center justify-center gap-2 text-green-500 mb-2">
             <ShieldIcon />
             <span className="text-sm">Anonymous Call (*67)</span>
+          </div>
+        )}
+
+        {activeCall.voiceMaskEnabled && (
+          <div className="flex items-center justify-center gap-2 text-purple-500 mb-4">
+            <MicMaskIcon />
+            <span className="text-sm">Voice Masked</span>
           </div>
         )}
         
@@ -283,6 +301,20 @@ export const ActiveCall = ({ minimized = false, onToggleMinimize }: ActiveCallPr
                 <DialpadIcon />
               </div>
               <span className="text-xs">Dialpad</span>
+            </button>
+
+            {/* Voice Mask Toggle */}
+            <button
+              onClick={toggleVoiceMaskInCall}
+              className={`flex flex-col items-center gap-2 ${
+                activeCall.voiceMaskEnabled ? 'text-purple-500' : 'text-text-secondary hover:text-text-primary'
+              }`}
+              title={activeCall.voiceMaskEnabled ? 'Disable Voice Mask' : 'Enable Voice Mask'}
+            >
+              <div className={`p-4 rounded-full ${activeCall.voiceMaskEnabled ? 'bg-purple-600/20' : 'bg-surface-elevated'}`}>
+                <MicMaskIcon />
+              </div>
+              <span className="text-xs">{activeCall.voiceMaskEnabled ? 'Masked' : 'Mask'}</span>
             </button>
           </div>
         )}

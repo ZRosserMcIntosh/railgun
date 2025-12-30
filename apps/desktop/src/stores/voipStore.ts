@@ -48,6 +48,7 @@ export interface ActiveCall {
   status: CallStatus;
   startTime: number;
   anonymous: boolean;
+  voiceMaskEnabled: boolean; // Voice masking for anonymity
   isMuted: boolean;
   isSpeakerOn: boolean;
 }
@@ -68,6 +69,7 @@ interface VoipState {
   // Dialer state
   dialerInput: string;
   isAnonymousCall: boolean; // Current call anonymous toggle
+  voiceMaskEnabled: boolean; // Voice masking toggle for anonymity
 
   // Actions - Settings
   setAnonymousByDefault: (enabled: boolean) => void;
@@ -79,13 +81,15 @@ interface VoipState {
   clearDialerInput: () => void;
   backspaceDialerInput: () => void;
   toggleAnonymousCall: () => void;
+  toggleVoiceMask: () => void; // Toggle voice masking
 
   // Actions - Call Management
-  initiateCall: (phoneNumber: string, anonymous?: boolean) => Promise<void>;
+  initiateCall: (phoneNumber: string, anonymous?: boolean, voiceMask?: boolean) => Promise<void>;
   answerCall: () => Promise<void>;
   endCall: () => void;
   toggleMute: () => void;
   toggleSpeaker: () => void;
+  toggleVoiceMaskInCall: () => void; // Toggle voice mask during active call
   sendDTMF: (digit: string) => void;
 
   // Actions - Call History (Privacy-focused)
@@ -141,6 +145,7 @@ export const useVoipStore = create<VoipState>()((set, get) => ({
   callHistory: [], // In-memory only - never persisted
   dialerInput: '',
   isAnonymousCall: true, // Mirrors anonymousByDefault
+  voiceMaskEnabled: false, // Voice masking off by default
 
   // ==================== Settings Actions ====================
 
@@ -176,9 +181,13 @@ export const useVoipStore = create<VoipState>()((set, get) => ({
     set((state) => ({ isAnonymousCall: !state.isAnonymousCall }));
   },
 
+  toggleVoiceMask: () => {
+    set((state) => ({ voiceMaskEnabled: !state.voiceMaskEnabled }));
+  },
+
   // ==================== Call Management ====================
 
-  initiateCall: async (phoneNumber, anonymous) => {
+  initiateCall: async (phoneNumber, anonymous, voiceMask) => {
     const state = get();
     
     // Don't allow multiple calls
@@ -194,6 +203,7 @@ export const useVoipStore = create<VoipState>()((set, get) => ({
     }
 
     const isAnonymous = anonymous ?? state.isAnonymousCall;
+    const isVoiceMasked = voiceMask ?? state.voiceMaskEnabled;
     const callId = generateId();
 
     // Create active call
@@ -205,6 +215,7 @@ export const useVoipStore = create<VoipState>()((set, get) => ({
       status: CallStatus.DIALING,
       startTime: Date.now(),
       anonymous: isAnonymous,
+      voiceMaskEnabled: isVoiceMasked,
       isMuted: false,
       isSpeakerOn: false,
     };
@@ -216,7 +227,7 @@ export const useVoipStore = create<VoipState>()((set, get) => ({
 
     // TODO: Integrate with actual VOIP provider (Twilio, etc.)
     // The actual number to dial would be: isAnonymous ? `*67${normalizedNumber}` : normalizedNumber
-    console.log(`[VOIP] Initiating ${isAnonymous ? 'anonymous ' : ''}call to: ${normalizedNumber}`);
+    console.log(`[VOIP] Initiating ${isAnonymous ? 'anonymous ' : ''}${isVoiceMasked ? 'voice-masked ' : ''}call to: ${normalizedNumber}`);
     
     // Simulate connection for now
     setTimeout(() => {
@@ -287,6 +298,15 @@ export const useVoipStore = create<VoipState>()((set, get) => ({
     if (activeCall) {
       set({
         activeCall: { ...activeCall, isSpeakerOn: !activeCall.isSpeakerOn },
+      });
+    }
+  },
+
+  toggleVoiceMaskInCall: () => {
+    const { activeCall } = get();
+    if (activeCall) {
+      set({
+        activeCall: { ...activeCall, voiceMaskEnabled: !activeCall.voiceMaskEnabled },
       });
     }
   },

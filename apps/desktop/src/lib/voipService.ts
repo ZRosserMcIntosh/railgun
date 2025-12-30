@@ -17,7 +17,7 @@ import { CallStatus, CallDirection, useVoipStore } from '../stores/voipStore';
 export interface VoipProvider {
   name: string;
   initialize(config: VoipConfig): Promise<void>;
-  makeCall(phoneNumber: string, anonymous: boolean): Promise<CallSession>;
+  makeCall(phoneNumber: string, anonymous: boolean, voiceMaskEnabled: boolean): Promise<CallSession>;
   endCall(sessionId: string): Promise<void>;
   sendDTMF(sessionId: string, digit: string): Promise<void>;
   setMute(sessionId: string, muted: boolean): Promise<void>;
@@ -53,6 +53,7 @@ export interface CallSession {
   status: CallStatus;
   startTime: number;
   anonymous: boolean;
+  voiceMaskEnabled: boolean;
 }
 
 export interface AudioDevice {
@@ -72,7 +73,7 @@ class MockVoipProvider implements VoipProvider {
     console.log('[MockVoipProvider] Initialized');
   }
 
-  async makeCall(phoneNumber: string, anonymous: boolean): Promise<CallSession> {
+  async makeCall(phoneNumber: string, anonymous: boolean, voiceMaskEnabled: boolean): Promise<CallSession> {
     const session: CallSession = {
       id: `mock-${Date.now()}`,
       phoneNumber,
@@ -80,10 +81,11 @@ class MockVoipProvider implements VoipProvider {
       status: CallStatus.DIALING,
       startTime: Date.now(),
       anonymous,
+      voiceMaskEnabled,
     };
 
     this.activeCalls.set(session.id, session);
-    console.log(`[MockVoipProvider] Making ${anonymous ? 'anonymous ' : ''}call to: ${phoneNumber}`);
+    console.log(`[MockVoipProvider] Making ${anonymous ? 'anonymous ' : ''}${voiceMaskEnabled ? 'voice-masked ' : ''}call to: ${phoneNumber}`);
     
     // Simulate call progression
     setTimeout(() => this.updateCallStatus(session.id, CallStatus.RINGING), 1000);
@@ -163,7 +165,7 @@ class TwilioVoipProvider implements VoipProvider {
     */
   }
 
-  async makeCall(phoneNumber: string, anonymous: boolean): Promise<CallSession> {
+  async makeCall(phoneNumber: string, anonymous: boolean, voiceMaskEnabled: boolean): Promise<CallSession> {
     if (!this.device) {
       throw new Error('Twilio device not initialized');
     }
@@ -178,6 +180,7 @@ class TwilioVoipProvider implements VoipProvider {
       status: CallStatus.DIALING,
       startTime: Date.now(),
       anonymous,
+      voiceMaskEnabled,
     };
 
     // Example Twilio call (requires proper backend setup)
@@ -292,7 +295,7 @@ class VoipService {
     console.log(`[VoipService] Initialized with provider: ${this.provider.name}`);
   }
 
-  async makeCall(phoneNumber: string, anonymous = true): Promise<void> {
+  async makeCall(phoneNumber: string, anonymous = true, voiceMaskEnabled = false): Promise<void> {
     if (!this.isInitialized) {
       throw new Error('VOIP service not initialized');
     }
@@ -302,7 +305,7 @@ class VoipService {
     }
 
     try {
-      this.currentSession = await this.provider.makeCall(phoneNumber, anonymous);
+      this.currentSession = await this.provider.makeCall(phoneNumber, anonymous, voiceMaskEnabled);
       
       // Update store
       const store = useVoipStore.getState();
@@ -314,6 +317,7 @@ class VoipService {
         status: this.currentSession.status,
         startTime: this.currentSession.startTime,
         anonymous: this.currentSession.anonymous,
+        voiceMaskEnabled: this.currentSession.voiceMaskEnabled,
         isMuted: false,
         isSpeakerOn: false,
       });

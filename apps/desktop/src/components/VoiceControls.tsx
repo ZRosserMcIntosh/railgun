@@ -16,6 +16,7 @@ import {
   Settings,
   Lock,
   Activity,
+  Shield,
 } from 'lucide-react';
 import { getVoiceService, type VoiceControlsState, type CallStats } from '../lib/voiceService';
 import { hasCapability, Capability } from '../billing';
@@ -75,6 +76,10 @@ export function VoiceControls({ channelId, isPro, onUpgradeClick }: VoiceControl
     }
   };
   
+  const handleVoiceMaskToggle = async () => {
+    await voiceService.toggleVoiceChanger();
+  };
+  
   return (
     <div className="flex flex-col gap-4 rounded-xl bg-surface-elevated p-4">
       {/* Main Controls */}
@@ -103,6 +108,22 @@ export function VoiceControls({ channelId, isPro, onUpgradeClick }: VoiceControl
           title={state.deafened ? 'Undeafen' : 'Deafen'}
         >
           {state.deafened ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+        </button>
+        
+        {/* Voice Mask - for anonymity */}
+        <button
+          onClick={handleVoiceMaskToggle}
+          className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
+            state.voiceChangerEnabled
+              ? 'bg-primary-500 text-white hover:bg-primary-600'
+              : 'bg-surface-base text-text-primary hover:bg-surface-elevated'
+          }`}
+          title={state.voiceChangerEnabled 
+            ? 'Disable voice masking' 
+            : 'Mask voice for anonymity (distorts your voice to protect identity)'
+          }
+        >
+          <Shield className="h-5 w-5" />
         </button>
         
         {/* Video */}

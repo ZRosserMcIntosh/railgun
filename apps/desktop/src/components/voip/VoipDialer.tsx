@@ -21,6 +21,12 @@ const ShieldIcon = () => (
   </svg>
 );
 
+const MicMaskIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+  </svg>
+);
+
 // ==================== Dialpad Button ====================
 
 interface DialpadButtonProps {
@@ -47,12 +53,14 @@ export const VoipDialer = () => {
   const {
     dialerInput,
     isAnonymousCall,
+    voiceMaskEnabled,
     anonymousByDefault,
     activeCall,
     appendDialerInput,
     backspaceDialerInput,
     clearDialerInput,
     toggleAnonymousCall,
+    toggleVoiceMask,
     initiateCall,
   } = useVoipStore();
 
@@ -163,6 +171,39 @@ export const VoipDialer = () => {
             Anonymous calling is enabled by default
           </p>
         )}
+
+        {/* Voice Mask Toggle */}
+        <button
+          onClick={toggleVoiceMask}
+          className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors mt-3 ${
+            voiceMaskEnabled
+              ? 'bg-purple-900/30 border border-purple-600'
+              : 'bg-surface-elevated border border-dark-600'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <MicMaskIcon />
+            <div className="text-left">
+              <div className="text-sm font-medium text-text-primary">
+                Mask Voice
+              </div>
+              <div className="text-xs text-text-muted">
+                {voiceMaskEnabled ? 'Voice distorted' : 'Voice normal'}
+              </div>
+            </div>
+          </div>
+          <div
+            className={`w-10 h-6 rounded-full transition-colors ${
+              voiceMaskEnabled ? 'bg-purple-600' : 'bg-dark-600'
+            } relative`}
+          >
+            <div
+              className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                voiceMaskEnabled ? 'left-5' : 'left-1'
+              }`}
+            />
+          </div>
+        </button>
       </div>
 
       {/* Number Display */}

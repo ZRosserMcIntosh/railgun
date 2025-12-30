@@ -46,6 +46,7 @@ export interface VoiceControlsState {
   deafened: boolean;
   videoEnabled: boolean;
   screenshareEnabled: boolean;
+  voiceChangerEnabled: boolean;  // Voice masking for anonymity
   
   selectedMicrophone?: string;
   selectedSpeaker?: string;
@@ -196,6 +197,7 @@ export class VoiceService extends EventEmitter {
     deafened: false,
     videoEnabled: false,
     screenshareEnabled: false,
+    voiceChangerEnabled: false,  // Voice masking off by default
     inputVolume: 1.0,
     outputVolume: 1.0,
     perUserVolumes: new Map(),
@@ -211,6 +213,10 @@ export class VoiceService extends EventEmitter {
     source: MediaStreamAudioSourceNode;
     gain: GainNode;
     analyser: AnalyserNode;
+    // Voice masking nodes (optional)
+    bandpassFilter?: BiquadFilterNode;
+    waveShaper?: WaveShaperNode;
+    destination?: MediaStreamAudioDestinationNode;
   }> = new Map();
   
   constructor() {
@@ -516,6 +522,53 @@ export class VoiceService extends EventEmitter {
     return true;
   }
   
+  /**
+   * Toggle voice changer/masking for anonymity.
+   * 
+   * Uses a lightweight Web Audio processing chain:
+   * - BiquadFilter (bandpass 300-1200 Hz) to alter voice characteristics
+   * - WaveShaper for light distortion
+   * 
+   * NOTE: This is a basic voice distortion, not a forensic-proof voice disguise.
+   * For stronger anonymity, a pitch shifter could be added (but is more CPU intensive).
+   */
+  async setVoiceChanger(enabled: boolean): Promise<void> {
+    this.state.voiceChangerEnabled = enabled;
+    
+    // If we have an active stream, rebuild the audio processing chain
+    if (this.localStream && this.audioContext) {
+      await this.rebuildAudioProcessing();
+    }
+    
+    this.emit('state:changed', this.state);
+    console.log(`[VoiceService] Voice masking ${enabled ? 'enabled' : 'disabled'}`);
+  }
+  
+  async toggleVoiceChanger(): Promise<void> {
+    await this.setVoiceChanger(!this.state.voiceChangerEnabled);
+  }
+  
+  /**
+   * Rebuild the audio processing chain (used when toggling voice changer while in call)
+   */
+  private async rebuildAudioProcessing(): Promise<void> {
+    if (!this.localStream || !this.audioContext) return;
+    
+    // Disconnect existing local audio nodes
+    const localNodes = this.audioNodes.get('local');
+    if (localNodes) {
+      localNodes.source.disconnect();
+      localNodes.gain.disconnect();
+      localNodes.analyser.disconnect();
+      localNodes.bandpassFilter?.disconnect();
+      localNodes.waveShaper?.disconnect();
+      localNodes.destination?.disconnect();
+    }
+    
+    // Re-apply processing with current settings
+    await this.applyAudioProcessing(this.localStream);
+  }
+  
   setInputVolume(volume: number): void {
     this.state.inputVolume = Math.max(0, Math.min(2, volume));
     // Apply to local stream gain node
@@ -552,6 +605,24 @@ export class VoiceService extends EventEmitter {
   // AUDIO PROCESSING
   // ========================================================================
   
+  /**
+   * Create a distortion curve for the WaveShaper node.
+   * Provides light distortion to mask voice characteristics.
+   */
+  private createDistortionCurve(amount: number = 20): Float32Array<ArrayBuffer> | null {
+    const samples = 44100;
+    const buffer = new ArrayBuffer(samples * 4); // Float32 = 4 bytes
+    const curve = new Float32Array(buffer);
+    const deg = Math.PI / 180;
+    
+    for (let i = 0; i < samples; i++) {
+      const x = (i * 2) / samples - 1;
+      curve[i] = ((3 + amount) * x * deg) / (Math.PI + amount * Math.abs(x));
+    }
+    
+    return curve as Float32Array<ArrayBuffer>;
+  }
+  
   private async applyAudioProcessing(stream: MediaStream): Promise<void> {
     if (!this.audioContext) return;
     
@@ -563,14 +634,66 @@ export class VoiceService extends EventEmitter {
     gainNode.gain.value = this.state.inputVolume;
     analyserNode.fftSize = 256;
     
-    source.connect(gainNode);
-    gainNode.connect(analyserNode);
+    // Store nodes for later reference
+    const nodes: {
+      source: MediaStreamAudioSourceNode;
+      gain: GainNode;
+      analyser: AnalyserNode;
+      bandpassFilter?: BiquadFilterNode;
+      waveShaper?: WaveShaperNode;
+      destination?: MediaStreamAudioDestinationNode;
+    } = { source, gain: gainNode, analyser: analyserNode };
+    
+    if (this.state.voiceChangerEnabled) {
+      // Voice masking chain: Source → Bandpass → WaveShaper → Gain → Analyser
+      // This creates a distorted, narrower-band voice that's harder to identify
+      
+      // Bandpass filter: Focus on 300-1200 Hz range (typical voice fundamental frequencies)
+      // This removes identifying high harmonics and low rumble
+      const bandpassFilter = this.audioContext.createBiquadFilter();
+      bandpassFilter.type = 'bandpass';
+      bandpassFilter.frequency.value = 750; // Center frequency
+      bandpassFilter.Q.value = 0.7; // Bandwidth control (lower = wider)
+      
+      // WaveShaper for light distortion
+      // This adds harmonics that mask the original voice timbre
+      const waveShaper = this.audioContext.createWaveShaper();
+      waveShaper.curve = this.createDistortionCurve(15); // Light distortion
+      waveShaper.oversample = '2x'; // Better quality
+      
+      // Create destination to get processed stream
+      const destination = this.audioContext.createMediaStreamDestination();
+      
+      // Connect chain: source → bandpass → waveshaper → gain → destination
+      source.connect(bandpassFilter);
+      bandpassFilter.connect(waveShaper);
+      waveShaper.connect(gainNode);
+      gainNode.connect(destination);
+      
+      // Also connect to analyser for VAD (speaking detection)
+      gainNode.connect(analyserNode);
+      
+      // Store additional nodes
+      nodes.bandpassFilter = bandpassFilter;
+      nodes.waveShaper = waveShaper;
+      nodes.destination = destination;
+      
+      // The processed stream will be used for WebRTC transmission
+      // Emit event so callers can use the processed stream
+      this.emit('audio:processed', destination.stream);
+      
+      console.log('[VoiceService] Voice masking audio chain applied');
+    } else {
+      // Standard chain: Source → Gain → Analyser
+      source.connect(gainNode);
+      gainNode.connect(analyserNode);
+    }
     
     // VAD for speaking detection
     this.setupVAD(analyserNode);
     
     // Store for cleanup
-    this.audioNodes.set('local', { source, gain: gainNode, analyser: analyserNode });
+    this.audioNodes.set('local', nodes);
   }
   
   private setupVAD(analyser: AnalyserNode): void {
@@ -614,6 +737,7 @@ export class VoiceService extends EventEmitter {
     if (!pc) return null;
     
     const stats = await pc.getStats();
+    const audioPackets = { sent: 0, received: 0, lost: 0 };
     const result: Partial<CallStats> = {
       audioCodec: 'opus',
       transport: 'udp',
@@ -621,7 +745,7 @@ export class VoiceService extends EventEmitter {
       jitter: 0,
       packetLoss: 0,
       audioBitrate: 0,
-      audioPackets: { sent: 0, received: 0, lost: 0 },
+      audioPackets,
     };
     
     stats.forEach(report => {
@@ -633,13 +757,13 @@ export class VoiceService extends EventEmitter {
       if (report.type === 'inbound-rtp' && report.kind === 'audio') {
         result.jitter = report.jitter * 1000;
         result.packetLoss = report.packetsLost / (report.packetsReceived + report.packetsLost);
-        result.audioPackets.received = report.packetsReceived;
-        result.audioPackets.lost = report.packetsLost;
+        audioPackets.received = report.packetsReceived;
+        audioPackets.lost = report.packetsLost;
       }
       
       if (report.type === 'outbound-rtp' && report.kind === 'audio') {
         result.audioBitrate = report.bytesSent * 8 / report.timestamp * 1000; // kbps
-        result.audioPackets.sent = report.packetsSent;
+        audioPackets.sent = report.packetsSent;
       }
       
       if (report.type === 'outbound-rtp' && report.kind === 'video') {
