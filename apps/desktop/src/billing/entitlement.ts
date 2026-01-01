@@ -43,16 +43,17 @@ export const TOKEN_FILE_EXTENSION = '.railgun-token';
  * Multiple keys support key rotation.
  * 
  * The private key counterpart is kept OFFLINE and NEVER in this repo.
+ * Private key should be stored in:
+ * - AWS Secrets Manager, or
+ * - HashiCorp Vault, or
+ * - Hardware Security Module (HSM)
  * 
- * To generate a new keypair for production:
- * ```
- * node -e "const sodium = require('libsodium-wrappers'); sodium.ready.then(() => { const kp = sodium.crypto_sign_keypair(); console.log('Public:', sodium.to_base64(kp.publicKey)); console.log('Private (KEEP SECRET):', sodium.to_base64(kp.privateKey)); })"
- * ```
+ * NEVER commit private keys to source control.
  */
 export const ENTITLEMENT_PUBLIC_KEYS: string[] = [
-  // Current production key (replace with actual key before production)
-  // This is a PLACEHOLDER - generate real keys before release
-  'RG5ldHdvcmtfcHJvX3B1YmxpY19rZXlfcGxhY2Vob2xkZXI=',
+  // Production key (generated 2025-12-29)
+  // Private key stored in server-side secret manager - NEVER in client code
+  'JMjdHZ0J_jL4OzfRFpcDahsgT-0IZuwrDeTz9hldXFA',
   
   // Previous keys for rotation (add here when rotating)
 ];
@@ -64,12 +65,14 @@ export const ENTITLEMENT_PUBLIC_KEYS: string[] = [
  * In production, tokens are signed by a secure backend service
  * with keys that never touch client code.
  */
-export const TEST_KEYPAIR = {
-  // These are for development/testing ONLY
-  // Base64-encoded Ed25519 keypair
-  publicKey: 'dGVzdF9wdWJsaWNfa2V5X3BsYWNlaG9sZGVy', // Placeholder
-  privateKey: 'dGVzdF9wcml2YXRlX2tleV9wbGFjZWhvbGRlcg==', // Placeholder
-};
+const isDevelopment = typeof process !== 'undefined' && process.env?.NODE_ENV === 'development';
+
+// Only expose test keypair in development mode
+export const TEST_KEYPAIR = isDevelopment ? {
+  // These are for development/testing ONLY - different from production keys
+  publicKey: 'test_dev_only_public_key_placeholder',
+  privateKey: 'test_dev_only_private_key_placeholder',
+} : null;
 
 // ============================================================================
 // TYPES

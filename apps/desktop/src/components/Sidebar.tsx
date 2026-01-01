@@ -6,6 +6,7 @@ import { getApiClient } from '../lib/api';
 import { socketClient } from '../lib/socket';
 import { StartDmModal } from './StartDmModal';
 import { CommunitySettingsModal } from './settings';
+import { useFeature, usePremiumFeature, FeatureFlags } from '../hooks';
 
 // Icons
 const HashIcon = () => (
@@ -67,6 +68,11 @@ export default function Sidebar() {
   const [newChannelName, setNewChannelName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Feature flags
+  const isDexEnabled = useFeature(FeatureFlags.DEX_SWAP);
+  const { enabled: isVoipEnabled, requiresPro: voipRequiresPro, hasPro } = usePremiumFeature(FeatureFlags.VOIP_PHONE);
+  const isBibleEnabled = useFeature(FeatureFlags.BIBLE_READER);
 
   const currentCommunity = communities.find((c) => c.id === currentCommunityId);
 
@@ -344,32 +350,50 @@ export default function Sidebar() {
           </svg>
         </button>
 
-        {/* DEX Swap Button */}
-        <button
-          onClick={() => navigate('/dex')}
-          className="w-12 h-12 rounded-2xl bg-blue-800 hover:bg-blue-600 flex items-center justify-center transition-colors group"
-          title="DEX Swap"
-        >
-          <span className="text-xl font-bold text-white">$</span>
-        </button>
+        {/* DEX Swap Button - Feature flagged */}
+        {isDexEnabled && (
+          <button
+            onClick={() => navigate('/dex')}
+            className="w-12 h-12 rounded-2xl bg-blue-800 hover:bg-blue-600 flex items-center justify-center transition-colors group"
+            title="DEX Swap"
+          >
+            <span className="text-xl font-bold text-white">$</span>
+          </button>
+        )}
 
-        {/* Anonymous Phone Dialer Button */}
-        <button
-          onClick={() => navigate('/phone')}
-          className="w-12 h-12 rounded-2xl bg-green-800 hover:bg-green-600 flex items-center justify-center transition-colors group"
-          title="Anonymous Phone (*67)"
-        >
-          <PhoneIcon />
-        </button>
+        {/* Anonymous Phone Dialer Button - Premium feature */}
+        {isVoipEnabled ? (
+          <button
+            onClick={() => navigate('/phone')}
+            className="w-12 h-12 rounded-2xl bg-green-800 hover:bg-green-600 flex items-center justify-center transition-colors group"
+            title="Anonymous Phone (*67)"
+          >
+            <PhoneIcon />
+          </button>
+        ) : voipRequiresPro && !hasPro ? (
+          <button
+            onClick={() => {
+              // TODO: Open upgrade modal
+              alert('VOIP Phone requires a Pro subscription. Upgrade to unlock this feature.');
+            }}
+            className="w-12 h-12 rounded-2xl bg-green-900/50 opacity-50 flex items-center justify-center transition-colors group relative"
+            title="Anonymous Phone (*67) - Pro Feature"
+          >
+            <PhoneIcon />
+            <span className="absolute -top-1 -right-1 bg-yellow-500 text-black text-xs px-1 rounded font-bold">PRO</span>
+          </button>
+        ) : null}
 
         {/* Bible Reader Button */}
-        <button
-          onClick={() => navigate('/bible')}
-          className="w-12 h-12 rounded-2xl bg-yellow-800 hover:bg-yellow-600 flex items-center justify-center transition-colors group"
-          title="Bible Reader"
-        >
-          <BookIcon />
-        </button>
+        {isBibleEnabled && (
+          <button
+            onClick={() => navigate('/bible')}
+            className="w-12 h-12 rounded-2xl bg-yellow-800 hover:bg-yellow-600 flex items-center justify-center transition-colors group"
+            title="Bible Reader"
+          >
+            <BookIcon />
+          </button>
+        )}
 
         {/* Settings Button */}
         <button 

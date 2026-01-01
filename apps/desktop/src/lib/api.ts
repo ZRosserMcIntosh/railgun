@@ -365,10 +365,112 @@ class ApiClient {
     });
   }
 
+  async updateCommunity(
+    communityId: string,
+    dto: { name?: string; description?: string; iconUrl?: string }
+  ) {
+    return this.request<{ community: Community }>(`/communities/${communityId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(dto),
+    });
+  }
+
   async regenerateInviteCode(communityId: string) {
     return this.request<{ inviteCode: string }>(
       `/communities/${communityId}/invite/regenerate`,
       { method: 'POST' }
+    );
+  }
+
+  // ==================== Members ====================
+
+  async getCommunityMembers(communityId: string) {
+    return this.request<{
+      members: Array<{
+        id: string;
+        userId: string;
+        username: string;
+        displayName: string;
+        avatarUrl?: string;
+        roleId?: string;
+        joinedAt: string;
+      }>;
+    }>(`/communities/${communityId}/members`);
+  }
+
+  async kickMember(communityId: string, userId: string) {
+    return this.request<{ message: string }>(
+      `/communities/${communityId}/members/${userId}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async assignRole(communityId: string, userId: string, roleId: string) {
+    return this.request<{ member: { userId: string; roleId: string } }>(
+      `/communities/${communityId}/members/${userId}/role`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ roleId }),
+      }
+    );
+  }
+
+  // ==================== Roles ====================
+
+  async getCommunityRoles(communityId: string) {
+    return this.request<{
+      roles: Array<{
+        id: string;
+        name: string;
+        color?: string;
+        permissions: string[];
+        position: number;
+        isDefault?: boolean;
+      }>;
+    }>(`/communities/${communityId}/roles`);
+  }
+
+  async createRole(
+    communityId: string,
+    dto: { name: string; color?: string; permissions?: string[]; position?: number }
+  ) {
+    return this.request<{
+      role: {
+        id: string;
+        name: string;
+        color?: string;
+        permissions: string[];
+        position: number;
+      };
+    }>(`/communities/${communityId}/roles`, {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  }
+
+  async updateRole(
+    communityId: string,
+    roleId: string,
+    dto: { name?: string; color?: string; permissions?: string[]; position?: number }
+  ) {
+    return this.request<{
+      role: {
+        id: string;
+        name: string;
+        color?: string;
+        permissions: string[];
+        position: number;
+      };
+    }>(`/communities/${communityId}/roles/${roleId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(dto),
+    });
+  }
+
+  async deleteRole(communityId: string, roleId: string) {
+    return this.request<{ message: string }>(
+      `/communities/${communityId}/roles/${roleId}`,
+      { method: 'DELETE' }
     );
   }
 
@@ -403,6 +505,56 @@ class ApiClient {
     return this.request<{ message: string }>(`/channels/${channelId}`, {
       method: 'DELETE',
     });
+  }
+
+  /**
+   * Get members of a channel (inherits from community membership).
+   * Channel access is determined by community membership + role permissions.
+   */
+  async getChannelMembers(channelId: string) {
+    return this.request<{
+      members: Array<{
+        userId: string;
+        username: string;
+        displayName: string;
+        deviceId: number;
+      }>;
+    }>(`/channels/${channelId}/members`);
+  }
+
+  /**
+   * Send sender key distribution to a specific user via the server.
+   * The server queues this for delivery to the recipient's device.
+   */
+  async sendSenderKeyDistribution(
+    channelId: string,
+    recipientUserId: string,
+    distribution: string // base64 encoded
+  ) {
+    return this.request<{ success: boolean }>(
+      `/channels/${channelId}/sender-key`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          recipientUserId,
+          distribution,
+        }),
+      }
+    );
+  }
+
+  /**
+   * Get pending sender key distributions for the current user.
+   */
+  async getPendingSenderKeys(channelId: string) {
+    return this.request<{
+      distributions: Array<{
+        senderUserId: string;
+        senderDeviceId: number;
+        distribution: string; // base64
+        createdAt: string;
+      }>;
+    }>(`/channels/${channelId}/sender-key`);
   }
 
   // ==================== Users ====================

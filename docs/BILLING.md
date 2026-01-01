@@ -211,6 +211,83 @@ GET  /billing/status            # Current subscription status
 
 ---
 
+## Stripe Products Setup
+
+### Required Products
+
+Create the following products in your Stripe Dashboard:
+
+#### 1. Rail Gun Pro Monthly
+
+**Product Settings:**
+- Name: `Rail Gun Pro Monthly`
+- Description: `Rail Gun Pro subscription - monthly billing`
+
+**Price Settings:**
+- Price: `$9.99/month`
+- Billing period: Monthly
+- Currency: USD
+- Price ID: Copy to `STRIPE_PRICE_ID_MONTHLY`
+
+#### 2. Rail Gun Pro Annual
+
+**Product Settings:**
+- Name: `Rail Gun Pro Annual`
+- Description: `Rail Gun Pro subscription - annual billing (save 17%)`
+
+**Price Settings:**
+- Price: `$99.99/year` (effectively $8.33/month)
+- Billing period: Yearly
+- Currency: USD
+- Price ID: Copy to `STRIPE_PRICE_ID_YEARLY`
+
+### Stripe Dashboard Setup
+
+1. **Go to Products** → Create product for each tier
+2. **Copy Price IDs** to your environment variables:
+   ```env
+   STRIPE_PRICE_ID_MONTHLY=price_1XXXXXXXXX
+   STRIPE_PRICE_ID_YEARLY=price_1XXXXXXXXX
+   ```
+
+3. **Configure Webhook** (Developers → Webhooks):
+   - Endpoint URL: `https://api.your-domain.com/billing/webhook`
+   - Events to listen for:
+     - `checkout.session.completed`
+     - `customer.subscription.updated`
+     - `customer.subscription.deleted`
+     - `invoice.paid`
+     - `invoice.payment_failed`
+   - Copy Webhook Secret to `STRIPE_WEBHOOK_SECRET`
+
+4. **Configure Customer Portal** (Settings → Billing → Customer portal):
+   - Enable subscription cancellation
+   - Enable plan switching
+   - Enable payment method updates
+
+### Test Mode vs Live Mode
+
+**Development/Staging:**
+```env
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+```
+
+**Production:**
+```env
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_PUBLISHABLE_KEY=pk_live_...
+```
+
+### Test Cards
+
+Use these in test mode:
+- Success: `4242 4242 4242 4242`
+- Decline: `4000 0000 0000 0002`
+- Auth required: `4000 0025 0000 3155`
+
+---
+
 ## Key Management
 
 ### Signing Keypair

@@ -43,9 +43,8 @@ interface StripePrices {
 export class BillingService {
   private readonly logger = new Logger(BillingService.name);
   private stripe: Stripe | null = null;
-  private prices: StripePrices | null = null;
+  private prices: StripePrices;
   private billingRefSecret: string | null = null;
-  private isConfigured = false;
 
   constructor(
     @InjectRepository(BillingProfile)
@@ -56,21 +55,16 @@ export class BillingService {
     const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!stripeSecretKey) {
       this.logger.warn('STRIPE_SECRET_KEY not set - billing service will not function');
-      return;
+    } else {
+      this.stripe = new Stripe(stripeSecretKey);
     }
-    
-    this.stripe = new Stripe(stripeSecretKey, {
-      apiVersion: '2024-11-20.acacia',
-      typescript: true,
-    });
 
     // Get billing ref secret for HMAC generation
     const billingRefSecret = this.configService.get<string>('BILLING_REF_SECRET');
     if (!billingRefSecret) {
       this.logger.warn('BILLING_REF_SECRET not set - billing service will not function');
-      return;
     }
-    this.billingRefSecret = billingRefSecret;
+    this.billingRefSecret = billingRefSecret || null;
 
     // Get Stripe price IDs (optional in dev)
     this.prices = {
@@ -96,7 +90,7 @@ export class BillingService {
    */
   private generateBillingRef(userId: string): string {
     this.ensureConfigured();
-    return createHmac('sha256', this.billingRefSecret)
+    return createHmac('sha256', this.billingRefSecret!)
       .update(userId)
       .digest('hex');
   }
@@ -161,15 +155,15 @@ export class BillingService {
       return profile.stripeCustomerId;
     }
 
+    this.ensureConfigured();
+
     try {
       // Create Stripe customer with ONLY billing_ref as metadata
       // NO email, NO name, NO PII
-      const customer = await this.stripe.customers.create({
+      const customer = await this.stripe!.customers.create({
         metadata: {
           billing_ref: profile.billingRef,
         },
-        // Optional: use a blind email alias if Stripe receipts are needed
-        // email: `${profile.billingRef}@billing.railgun.app`,
       });
 
       profile.stripeCustomerId = customer.id;
@@ -195,6 +189,8 @@ export class BillingService {
     successUrl: string,
     cancelUrl: string,
   ): Promise<{ sessionId: string; url: string }> {
+    this.ensureConfigured();
+
     const profile = await this.getOrCreateProfile(userId);
     const stripeCustomerId = await this.ensureStripeCustomer(profile);
 
@@ -205,7 +201,7 @@ export class BillingService {
     }
 
     try {
-      const session = await this.stripe.checkout.sessions.create({
+      const session = await this.stripe!.checkout.sessions.create({
         customer: stripeCustomerId,
         client_reference_id: profile.billingRef, // Key: billing_ref for webhook lookup
         mode: 'subscription',
@@ -217,21 +213,13 @@ export class BillingService {
         ],
         success_url: successUrl,
         cancel_url: cancelUrl,
-        // Don't collect email - we don't want PII
-        customer_update: {
-          address: 'auto', // Only collect address for tax purposes if needed
-        },
-        // Optional: Add trial period
-        // subscription_data: {
-        //   trial_period_days: 7,
-        // },
       });
 
       this.logger.log(`Created checkout session: ${session.id} for billing_ref: ${profile.billingRef.substring(0, 8)}...`);
 
       return {
         sessionId: session.id,
-        url: session.url,
+        url: session.url || '',
       };
     } catch (error) {
       this.logger.error('Failed to create checkout session', error);
@@ -247,6 +235,8 @@ export class BillingService {
     userId: string,
     returnUrl: string,
   ): Promise<{ url: string }> {
+    this.ensureConfigured();
+
     const profile = await this.getProfileByUserId(userId);
     
     if (!profile?.stripeCustomerId) {
@@ -254,7 +244,7 @@ export class BillingService {
     }
 
     try {
-      const session = await this.stripe.billingPortal.sessions.create({
+      const session = await this.stripe!.billingPortal.sessions.create({
         customer: profile.stripeCustomerId,
         return_url: returnUrl,
       });
@@ -276,17 +266,19 @@ export class BillingService {
     userId: string,
     apiVersion: string,
   ): Promise<{ ephemeralKey: string; customerId: string }> {
+    this.ensureConfigured();
+
     const profile = await this.getOrCreateProfile(userId);
     const stripeCustomerId = await this.ensureStripeCustomer(profile);
 
     try {
-      const ephemeralKey = await this.stripe.ephemeralKeys.create(
+      const ephemeralKey = await this.stripe!.ephemeralKeys.create(
         { customer: stripeCustomerId },
         { apiVersion },
       );
 
       return {
-        ephemeralKey: ephemeralKey.secret,
+        ephemeralKey: ephemeralKey.secret || '',
         customerId: stripeCustomerId,
       };
     } catch (error) {
@@ -300,6 +292,8 @@ export class BillingService {
    * Look up by client_reference_id (billing_ref) and update subscription
    */
   async handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
+    this.ensureConfigured();
+
     const billingRef = session.client_reference_id;
     if (!billingRef) {
       this.logger.warn('Checkout session missing client_reference_id');
@@ -314,7 +308,7 @@ export class BillingService {
 
     // Get subscription details
     if (session.subscription && typeof session.subscription === 'string') {
-      const subscription = await this.stripe.subscriptions.retrieve(session.subscription);
+      const subscription = await this.stripe!.subscriptions.retrieve(session.subscription);
       await this.updateSubscriptionState(profile, subscription);
     }
 
@@ -325,9 +319,18 @@ export class BillingService {
    * Handle subscription updated webhook
    */
   async handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<void> {
-    const profile = await this.getProfileByStripeCustomerId(subscription.customer as string);
+    const customerId = typeof subscription.customer === 'string' 
+      ? subscription.customer 
+      : subscription.customer?.id;
+    
+    if (!customerId) {
+      this.logger.warn('Subscription missing customer ID');
+      return;
+    }
+
+    const profile = await this.getProfileByStripeCustomerId(customerId);
     if (!profile) {
-      this.logger.warn(`No profile found for Stripe customer: ${subscription.customer}`);
+      this.logger.warn(`No profile found for Stripe customer: ${customerId}`);
       return;
     }
 
@@ -339,9 +342,15 @@ export class BillingService {
    * Handle subscription deleted webhook
    */
   async handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void> {
-    const profile = await this.getProfileByStripeCustomerId(subscription.customer as string);
+    const customerId = typeof subscription.customer === 'string' 
+      ? subscription.customer 
+      : subscription.customer?.id;
+
+    if (!customerId) return;
+
+    const profile = await this.getProfileByStripeCustomerId(customerId);
     if (!profile) {
-      this.logger.warn(`No profile found for Stripe customer: ${subscription.customer}`);
+      this.logger.warn(`No profile found for Stripe customer: ${customerId}`);
       return;
     }
 
@@ -359,9 +368,22 @@ export class BillingService {
    * Handle invoice payment succeeded webhook
    */
   async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
-    if (!invoice.subscription) return;
+    // Access subscription via any due to Stripe API version differences
+    const invoiceAny = invoice as unknown as Record<string, unknown>;
+    const subscriptionField = invoiceAny.subscription;
+    const subscriptionId = typeof subscriptionField === 'string'
+      ? subscriptionField
+      : (subscriptionField as { id?: string } | null)?.id;
 
-    const profile = await this.getProfileByStripeCustomerId(invoice.customer as string);
+    if (!subscriptionId) return;
+
+    const customerId = typeof invoice.customer === 'string'
+      ? invoice.customer
+      : (invoice.customer as { id?: string })?.id;
+
+    if (!customerId) return;
+
+    const profile = await this.getProfileByStripeCustomerId(customerId);
     if (!profile) return;
 
     // Subscription is active - update state
@@ -376,9 +398,22 @@ export class BillingService {
    * Handle invoice payment failed webhook
    */
   async handleInvoicePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
-    if (!invoice.subscription) return;
+    // Access subscription via any due to Stripe API version differences
+    const invoiceAny = invoice as unknown as Record<string, unknown>;
+    const subscriptionField = invoiceAny.subscription;
+    const subscriptionId = typeof subscriptionField === 'string'
+      ? subscriptionField
+      : (subscriptionField as { id?: string } | null)?.id;
 
-    const profile = await this.getProfileByStripeCustomerId(invoice.customer as string);
+    if (!subscriptionId) return;
+
+    const customerId = typeof invoice.customer === 'string'
+      ? invoice.customer
+      : (invoice.customer as { id?: string })?.id;
+
+    if (!customerId) return;
+
+    const profile = await this.getProfileByStripeCustomerId(customerId);
     if (!profile) return;
 
     // Mark as past due - user still has access during grace period
@@ -396,7 +431,14 @@ export class BillingService {
     subscription: Stripe.Subscription,
   ): Promise<void> {
     profile.stripeSubscriptionId = subscription.id;
-    profile.currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+    
+    // Handle current_period_end - access via any type due to Stripe API changes
+    const subAny = subscription as unknown as Record<string, unknown>;
+    const periodEnd = subAny.current_period_end as number | undefined;
+    if (periodEnd) {
+      profile.currentPeriodEnd = new Date(periodEnd * 1000);
+    }
+    
     profile.cancelAtPeriodEnd = subscription.cancel_at_period_end;
 
     // Map Stripe status to our state
@@ -424,7 +466,9 @@ export class BillingService {
 
     // Determine tier from price
     const priceId = subscription.items.data[0]?.price?.id;
-    profile.tier = this.getTierFromPriceId(priceId);
+    if (priceId) {
+      profile.tier = this.getTierFromPriceId(priceId);
+    }
 
     await this.billingProfileRepo.save(profile);
   }
@@ -433,6 +477,8 @@ export class BillingService {
    * Get price ID based on tier and interval
    */
   private getPriceId(tier: ProTier, interval: 'monthly' | 'yearly'): string | null {
+    if (!this.prices) return null;
+
     switch (tier) {
       case ProTier.PRO:
         return interval === 'monthly' ? this.prices.proMonthly : this.prices.proYearly;
@@ -447,6 +493,8 @@ export class BillingService {
    * Get tier from Stripe price ID
    */
   private getTierFromPriceId(priceId: string): ProTier {
+    if (!this.prices) return ProTier.FREE;
+
     if (priceId === this.prices.proMonthly || priceId === this.prices.proYearly) {
       return ProTier.PRO;
     }

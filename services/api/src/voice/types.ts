@@ -5,7 +5,8 @@
  * Matches the spec in docs/VOICE_CHAT.md
  */
 
-import { types as mediasoupTypes } from 'mediasoup';
+// Stub mediasoup types - native module requires build tools
+import type * as mediasoupTypes from './mediasoup-stub';
 
 // ============================================================================
 // Session & Ownership

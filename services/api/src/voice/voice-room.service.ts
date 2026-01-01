@@ -1,11 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+// Note: ioredis is an optional dependency for voice features
+// Install with: pnpm add ioredis @types/ioredis
+type Redis = {
+  get: (key: string) => Promise<string | null>;
+  set: (key: string, value: string, mode?: string, duration?: number) => Promise<string>;
+  del: (key: string) => Promise<number>;
+  hset: (key: string, field: string, value: string) => Promise<number>;
+  hget: (key: string, field: string) => Promise<string | null>;
+  hdel: (key: string, field: string) => Promise<number>;
+};
 
 import {
   VoiceRoomState,
   VoiceRoomParticipant,
-  VideoSlotQueue,
   VideoSlotResult,
   ParticipantState,
   ProducerInfo,
@@ -33,7 +41,8 @@ export class VoiceRoomService {
   constructor(private readonly configService: ConfigService) {
     const redisUrl = this.configService.get<string>('REDIS_URL');
     if (redisUrl) {
-      this.redis = new Redis(redisUrl);
+      // Note: When ioredis is installed, replace with: this.redis = new IoRedis(redisUrl);
+      this.logger.warn('Voice room Redis not initialized - install ioredis for cross-node coordination');
     }
   }
 
@@ -257,7 +266,7 @@ export class VoiceRoomService {
     producerId: string,
   ): Promise<string | undefined> {
     const room = this.rooms.get(channelId);
-    if (!room) return;
+    if (!room) return undefined;
 
     const queue = room.videoSlotQueue;
 
@@ -265,6 +274,8 @@ export class VoiceRoomService {
       queue.activePublishers.delete(producerId);
       return this.promoteNextInQueue(channelId);
     }
+    
+    return undefined;
   }
 
   /**
@@ -299,7 +310,7 @@ export class VoiceRoomService {
    */
   private promoteNextInQueue(channelId: string): string | undefined {
     const room = this.rooms.get(channelId);
-    if (!room) return;
+    if (!room) return undefined;
 
     const queue = room.videoSlotQueue;
 
@@ -310,6 +321,8 @@ export class VoiceRoomService {
       this.logger.debug(`[promoteNextInQueue] channel=${channelId} promoted=${nextUserId}`);
       return nextUserId;
     }
+    
+    return undefined;
   }
 
   /**

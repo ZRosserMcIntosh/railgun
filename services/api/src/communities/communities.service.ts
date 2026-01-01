@@ -540,4 +540,49 @@ export class CommunitiesService {
       return false;
     }
   }
+
+  /**
+   * Validate if a user can access a voice channel.
+   * Checks: channel exists, user is member, channel is voice type, user has CONNECT_VOICE permission.
+   */
+  async validateVoiceAccess(
+    userId: string,
+    channelId: string,
+  ): Promise<{
+    allowed: boolean;
+    reason?: string;
+    permissions?: Permission[];
+  }> {
+    try {
+      // Get channel and verify it's a voice channel
+      const channel = await this.getChannel(channelId);
+      
+      if (channel.type !== ChannelType.VOICE) {
+        return { allowed: false, reason: 'Channel is not a voice channel' };
+      }
+
+      // Get member and check they're part of the community
+      const member = await this.getMember(channel.communityId, userId);
+
+      // Check for CONNECT_VOICE permission
+      if (!this.hasPermission(member, Permission.CONNECT_VOICE)) {
+        return { allowed: false, reason: 'Missing CONNECT_VOICE permission' };
+      }
+
+      // For private channels, check additional access
+      if (channel.isPrivate && !this.hasPermission(member, Permission.READ_MESSAGES)) {
+        return { allowed: false, reason: 'No access to private channel' };
+      }
+
+      // Collect all permissions the user has for the response
+      const userPermissions = member.role?.permissions || [];
+
+      return { allowed: true, permissions: userPermissions };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        return { allowed: false, reason: 'Channel or membership not found' };
+      }
+      throw error;
+    }
+  }
 }

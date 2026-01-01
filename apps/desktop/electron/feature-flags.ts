@@ -79,6 +79,30 @@ const CONFIG_URL = process.env.RAILGUN_CONFIG_URL || 'https://config.railgun.app
 const CONFIG_FILE = path.join(app.getPath('userData'), 'remote-config.json');
 const DISMISSED_ANNOUNCEMENTS_FILE = path.join(app.getPath('userData'), 'dismissed-announcements.json');
 
+/**
+ * Default feature flags applied when remote config is unavailable.
+ * These ensure incomplete features are hidden at launch.
+ */
+const DEFAULT_FLAGS: Record<string, FeatureFlag> = {
+  // Core messaging - enabled
+  dm_messaging: { key: 'dm_messaging', enabled: true, description: 'Direct messaging' },
+  community_chat: { key: 'community_chat', enabled: true, description: 'Community/server chat' },
+  
+  // Incomplete features - disabled for launch
+  dex_swap: { key: 'dex_swap', enabled: false, description: 'DEX cryptocurrency swap (incomplete)' },
+  p2p_networking: { key: 'p2p_networking', enabled: false, description: 'Peer-to-peer networking (incomplete)' },
+  web_app: { key: 'web_app', enabled: false, description: 'Web application (incomplete)' },
+  
+  // Premium features - require Pro subscription
+  voip_phone: { key: 'voip_phone', enabled: true, description: 'Anonymous VOIP phone (premium)' },
+  
+  // Bible reader - enabled (free feature)
+  bible_reader: { key: 'bible_reader', enabled: true, description: 'Bible reader' },
+  
+  // Voice chat in communities - enabled but needs permission checks
+  voice_channels: { key: 'voice_channels', enabled: true, description: 'Voice channels in communities' },
+};
+
 export class FeatureFlagManager {
   private config: RemoteConfig | null = null;
   private machineId: string;
@@ -307,14 +331,15 @@ export class FeatureFlagManager {
   /**
    * Check if a feature flag is enabled for this user
    */
-  isEnabled(key: string, defaultValue: boolean = false): boolean {
-    if (!this.config) {
-      return defaultValue;
-    }
-
-    const flag = this.config.flags[key];
+  isEnabled(key: string, defaultValue?: boolean): boolean {
+    // Get the flag from config or default flags
+    const configFlag = this.config?.flags[key];
+    const defaultFlag = DEFAULT_FLAGS[key];
+    const flag = configFlag || defaultFlag;
+    
+    // If no flag defined anywhere, use the provided default or false
     if (!flag) {
-      return defaultValue;
+      return defaultValue ?? false;
     }
 
     // Check deny list first
@@ -358,6 +383,12 @@ export class FeatureFlagManager {
   getAllFlags(): Record<string, boolean> {
     const result: Record<string, boolean> = {};
     
+    // Start with default flags
+    for (const key of Object.keys(DEFAULT_FLAGS)) {
+      result[key] = this.isEnabled(key);
+    }
+    
+    // Add any additional flags from remote config
     if (this.config) {
       for (const key of Object.keys(this.config.flags)) {
         result[key] = this.isEnabled(key);

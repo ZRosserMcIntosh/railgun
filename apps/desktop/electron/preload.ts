@@ -129,6 +129,56 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
   },
 
+  // Crypto operations (Signal Protocol runs in main process)
+  crypto: {
+    isSignalAvailable: (): Promise<boolean> => {
+      return ipcRenderer.invoke('crypto:isSignalAvailable');
+    },
+    init: (): Promise<{ success: boolean; alreadyInitialized?: boolean; useSimpleCrypto?: boolean }> => {
+      return ipcRenderer.invoke('crypto:init');
+    },
+    isInitialized: (): Promise<boolean> => {
+      return ipcRenderer.invoke('crypto:isInitialized');
+    },
+    setLocalUserId: (userId: string): Promise<{ success: boolean }> => {
+      if (typeof userId !== 'string') return Promise.resolve({ success: false });
+      return ipcRenderer.invoke('crypto:setLocalUserId', userId);
+    },
+    getDeviceId: (): Promise<number> => {
+      return ipcRenderer.invoke('crypto:getDeviceId');
+    },
+    getRegistrationId: (): Promise<number> => {
+      return ipcRenderer.invoke('crypto:getRegistrationId');
+    },
+    getIdentityPublicKey: (): Promise<string | null> => {
+      return ipcRenderer.invoke('crypto:getIdentityPublicKey');
+    },
+    getIdentityFingerprint: (): Promise<string> => {
+      return ipcRenderer.invoke('crypto:getIdentityFingerprint');
+    },
+    getPreKeyBundle: (): Promise<unknown> => {
+      return ipcRenderer.invoke('crypto:getPreKeyBundle');
+    },
+    encryptDm: (peerUserId: string, plaintext: string): Promise<unknown> => {
+      if (typeof peerUserId !== 'string' || typeof plaintext !== 'string') {
+        return Promise.reject(new Error('Invalid arguments'));
+      }
+      return ipcRenderer.invoke('crypto:encryptDm', peerUserId, plaintext);
+    },
+    decryptDm: (peerUserId: string, message: unknown): Promise<string> => {
+      if (typeof peerUserId !== 'string') {
+        return Promise.reject(new Error('Invalid arguments'));
+      }
+      return ipcRenderer.invoke('crypto:decryptDm', peerUserId, message);
+    },
+    clearAllData: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('crypto:clearAllData');
+    },
+    cryptoShred: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('crypto:cryptoShred');
+    },
+  },
+
   // SECURITY: Versioned API to detect tampering
   version: '2.0.0',
 });
@@ -176,6 +226,21 @@ declare global {
         dismissAnnouncement: (id: string) => Promise<void>;
         getMaintenance: () => Promise<unknown>;
         isKillSwitchActive: () => Promise<{ active: boolean; message?: string }>;
+      };
+      crypto: {
+        isSignalAvailable: () => Promise<boolean>;
+        init: () => Promise<{ success: boolean; alreadyInitialized?: boolean; useSimpleCrypto?: boolean }>;
+        isInitialized: () => Promise<boolean>;
+        setLocalUserId: (userId: string) => Promise<{ success: boolean }>;
+        getDeviceId: () => Promise<number>;
+        getRegistrationId: () => Promise<number>;
+        getIdentityPublicKey: () => Promise<string | null>;
+        getIdentityFingerprint: () => Promise<string>;
+        getPreKeyBundle: () => Promise<unknown>;
+        encryptDm: (peerUserId: string, plaintext: string) => Promise<unknown>;
+        decryptDm: (peerUserId: string, message: unknown) => Promise<string>;
+        clearAllData: () => Promise<{ success: boolean }>;
+        cryptoShred: () => Promise<{ success: boolean }>;
       };
       version: string;
     };

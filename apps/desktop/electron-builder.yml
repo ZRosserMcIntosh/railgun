@@ -4,9 +4,15 @@ directories:
   output: release
   buildResources: resources
 
+# Exclude native modules that can't be bundled - crypto runs in renderer via SimpleCrypto
 files:
   - dist/**/*
   - dist-electron/**/*
+  - "!**/node_modules/@signalapp/**"
+  - "!**/node_modules/better-sqlite3/**"
+
+# Don't try to rebuild native modules
+npmRebuild: false
 
 mac:
   category: public.app-category.social-networking

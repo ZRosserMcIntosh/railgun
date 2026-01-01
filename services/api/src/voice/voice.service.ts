@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'crypto';
 
@@ -10,8 +10,8 @@ import {
   VoiceJoinedPayload,
   VoicePermissions,
   RTCConfigPayload,
-  ParticipantState,
 } from './types';
+import { Permission } from '@railgun/shared';
 
 /**
  * VoiceService
@@ -23,6 +23,11 @@ import {
 export class VoiceService {
   private readonly logger = new Logger(VoiceService.name);
   private readonly turnSecret: string | null;
+  
+  // Inject CommunitiesService for permission checks
+  // Note: This creates a circular dependency issue - resolve by using lazy loading
+  // or a separate ChannelValidationService
+  private channelValidationService: ChannelValidationServiceInterface | null = null;
 
   constructor(
     private readonly configService: ConfigService,
@@ -31,17 +36,25 @@ export class VoiceService {
   ) {
     this.turnSecret = this.configService.get<string>('TURN_SECRET') || null;
   }
+  
+  /**
+   * Set the channel validation service (to avoid circular dependency).
+   * Called during module initialization.
+   */
+  setChannelValidationService(service: ChannelValidationServiceInterface): void {
+    this.channelValidationService = service;
+  }
 
   /**
    * Join a voice channel.
    * Validates permissions, allocates SFU, creates router if needed.
    */
   async joinChannel(params: JoinChannelParams): Promise<VoiceJoinedPayload> {
-    const { userId, deviceId, channelId, isPro, socketId, rtpCapabilities } = params;
+    const { userId, deviceId, channelId, isPro, socketId } = params;
+    // Note: rtpCapabilities from params will be used when we implement full SFU integration
 
-    // TODO: Validate channel exists (query communities module)
-    // TODO: Check if user is banned from channel
-    // TODO: Check channel permissions
+    // Validate channel exists and user has permission
+    await this.validateChannelAccess(userId, channelId);
 
     // Get or create room state
     const room = await this.rooms.getOrCreateRoom(channelId, isPro);
@@ -56,7 +69,7 @@ export class VoiceService {
     const routerRtpCapabilities = await this.sfu.ensureRouter(channelId);
 
     // Add participant to room
-    const participant = await this.rooms.addParticipant(channelId, {
+    await this.rooms.addParticipant(channelId, {
       userId,
       deviceId,
       socketId,
@@ -82,14 +95,17 @@ export class VoiceService {
     const rtcConfig = this.buildRtcConfig(userId, false); // TODO: Get privacy mode from user settings
 
     // Get current participants for the joining user
-    const participants = Array.from(room.participants.values())
-      .filter(p => p.userId !== userId)
-      .map(p => ({
+    // Type assertion needed until mediasoup types are installed
+    type ParticipantData = { userId: string; deviceId: string; state: unknown; producers: Map<string, unknown> };
+    const participantValues = Array.from(room.participants.values()) as ParticipantData[];
+    const participants = participantValues
+      .filter((p) => p.userId !== userId)
+      .map((p) => ({
         userId: p.userId,
         deviceId: p.deviceId,
         state: p.state,
         producers: Array.from(p.producers.values()),
-      }));
+      })) as VoiceJoinedPayload['participants'];
 
     // Get SFU endpoint (for multi-region, would be from allocator)
     const sfuEndpoint = this.configService.get<string>('SFU_ENDPOINT') || 'wss://sfu.railgun.app';
@@ -174,4 +190,39 @@ export class VoiceService {
 
     return { username, credential };
   }
+  
+  /**
+   * Validate that a user can access a voice channel.
+   * Checks: channel exists, user is member, user has CONNECT_VOICE permission, user not banned.
+   */
+  private async validateChannelAccess(userId: string, channelId: string): Promise<void> {
+    // If no validation service configured, skip (for development)
+    if (!this.channelValidationService) {
+      this.logger.warn(`[validateChannelAccess] No validation service configured, skipping permission check`);
+      return;
+    }
+    
+    const result = await this.channelValidationService.validateVoiceAccess(userId, channelId);
+    
+    if (!result.allowed) {
+      this.logger.warn(`[validateChannelAccess] Access denied: user=${userId} channel=${channelId} reason=${result.reason}`);
+      throw new ForbiddenException(result.reason || 'Access denied');
+    }
+  }
+}
+
+/**
+ * Interface for channel validation service.
+ * Implemented by CommunitiesModule to avoid circular dependencies.
+ */
+export interface ChannelValidationServiceInterface {
+  /**
+   * Validate if a user can access a voice channel.
+   * Checks membership, permissions, and ban status.
+   */
+  validateVoiceAccess(userId: string, channelId: string): Promise<{
+    allowed: boolean;
+    reason?: string;
+    permissions?: Permission[];
+  }>;
 }

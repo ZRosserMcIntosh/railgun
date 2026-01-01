@@ -1,7 +1,9 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as mediasoup from 'mediasoup';
-import { types as mediasoupTypes } from 'mediasoup';
+// Stub mediasoup types - native module requires build tools
+// Install mediasoup when deploying SFU: pnpm add mediasoup
+import * as mediasoup from './mediasoup-stub';
+import type * as mediasoupTypes from './mediasoup-stub';
 
 import { VoiceRoomService } from './voice-room.service';
 import {

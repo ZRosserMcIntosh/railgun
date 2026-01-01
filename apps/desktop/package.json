@@ -58,24 +58,33 @@
     "appId": "com.railgun.desktop",
     "productName": "Rail Gun",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "resources"
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "!**/node_modules/@signalapp/**",
+      "!**/node_modules/better-sqlite3/**"
     ],
+    "npmRebuild": false,
     "mac": {
       "category": "public.app-category.social-networking",
       "target": [
         "dmg",
         "zip"
       ],
-      "icon": "build/icon.icns"
+      "icon": "resources/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "resources/entitlements.mac.plist",
+      "entitlementsInherit": "resources/entitlements.mac.plist"
     },
     "win": {
       "target": [
         "nsis"
       ],
+      "icon": "resources/icon.ico",
       "artifactName": "${productName}-${version}-Setup.${ext}"
     },
     "linux": {
@@ -83,7 +92,7 @@
         "AppImage",
         "deb"
       ],
-      "icon": "build/icons"
+      "icon": "resources/icons"
     }
   }
 }

@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { initAutoUpdater, getAutoUpdater } from './auto-updater';
 import { initAnalytics, getAnalytics } from './analytics';
 import { initFeatureFlags, getFeatureFlags } from './feature-flags';
+import { setupCryptoIPC, setMainWindow as setCryptoMainWindow } from './crypto-ipc';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -258,6 +259,51 @@ ipcMain.on('window-close', (event) => {
   }
 });
 
+// ============================================================================
+// SCREENSHOT PROTECTION
+// ============================================================================
+
+function setupScreenshotProtection() {
+  console.log('[Main] Setting up screenshot protection');
+  
+  // Listen for global keyboard shortcuts (macOS screenshot shortcuts)
+  app.on('browser-window-focus', () => {
+    if (mainWindow) {
+      // Detect when user presses Cmd+Shift+3/4/5 for screenshots
+      // Note: This is a simplified version. Full implementation would use
+      // global shortcuts or system hooks.
+      
+      mainWindow.webContents.on('before-input-event', (_event, input) => {
+        // Detect macOS screenshot shortcuts
+        if (input.meta && input.shift && ['3', '4', '5'].includes(input.key)) {
+          console.warn('🚨 [Screenshot Protection] Screenshot attempt detected');
+          mainWindow?.webContents.send('screenshot:attempt');
+          // Note: We can't actually prevent the screenshot on macOS,
+          // but we can show the overlay to the user
+        }
+        
+        // Detect Windows/Linux Print Screen
+        if (input.key === 'PrintScreen') {
+          console.warn('🚨 [Screenshot Protection] Screenshot attempt detected');
+          mainWindow?.webContents.send('screenshot:attempt');
+        }
+      });
+    }
+  });
+  
+  // Set window as non-recordable (macOS 10.15+)
+  if (process.platform === 'darwin' && mainWindow) {
+    try {
+      // This requires macOS 10.15+ and will prevent screen recording of this window
+      mainWindow.setContentProtection(true);
+      console.log('[Main] Content protection enabled (screen recording blocked)');
+    } catch (err) {
+      console.warn('[Main] Content protection not available:', err);
+    }
+  }
+}
+
+
 // App lifecycle
 app.whenReady().then(() => {
   // Load secure store from disk
@@ -280,14 +326,21 @@ app.whenReady().then(() => {
     updater.startAutoCheck();
   }
   
+  // Initialize crypto IPC handlers
+  setupCryptoIPC();
+  
+  // Setup screenshot protection
+  setupScreenshotProtection();
+  
   createWindow();
   
-  // Set main window for updater notifications
+  // Set main window for updater and crypto notifications
   if (mainWindow) {
     const updater = getAutoUpdater();
     if (updater) {
       updater.setMainWindow(mainWindow);
     }
+    setCryptoMainWindow(mainWindow);
   }
 
   app.on('activate', () => {

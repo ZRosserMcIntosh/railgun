@@ -3,6 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 
 import { BillingService } from './billing.service';
+import { BillingController } from './billing.controller';
+import { StripeWebhookController } from './stripe-webhook.controller';
 import { BillingProfile } from './entities/billing-profile.entity';
 
 /**
@@ -16,6 +18,7 @@ import { BillingProfile } from './entities/billing-profile.entity';
     ConfigModule,
     TypeOrmModule.forFeature([BillingProfile]),
   ],
+  controllers: [BillingController, StripeWebhookController],
   providers: [BillingService],
   exports: [BillingService],
 })

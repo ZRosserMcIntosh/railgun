@@ -223,10 +223,24 @@ class MessagingService {
     plaintext: string
   ): Promise<EncryptedEnvelope> {
     const crypto = getCrypto();
+    const api = getApiClient();
+
+    // Get channel members from server
+    let memberUserIds: string[] = [];
+    try {
+      const { members } = await api.getChannelMembers(channelId);
+      memberUserIds = members
+        .filter(m => m.userId !== this.localUserId) // Exclude ourselves
+        .map(m => m.userId);
+    } catch (err) {
+      console.warn('[MessagingService] Failed to get channel members, proceeding without key distribution:', err);
+    }
 
     // Ensure we have a sender key session for this channel
-    // TODO: Get actual member list from server
-    await crypto.ensureChannelSession(channelId, []);
+    await crypto.ensureChannelSession(channelId, memberUserIds);
+
+    // Distribute our sender key to members who don't have it
+    await this.distributeSenderKey(channelId, memberUserIds);
 
     const encrypted = await crypto.encryptChannel(channelId, plaintext);
 
@@ -236,6 +250,74 @@ class MessagingService {
       senderDeviceId: encrypted.senderDeviceId,
       distributionId: encrypted.distributionId,
     };
+  }
+
+  /**
+   * Distribute our sender key to channel members.
+   * This sends an encrypted distribution message to each member.
+   */
+  private async distributeSenderKey(channelId: string, memberUserIds: string[]): Promise<void> {
+    if (memberUserIds.length === 0) return;
+
+    const crypto = getCrypto();
+    const api = getApiClient();
+
+    try {
+      // Get our sender key distribution
+      const distribution = await crypto.getSenderKeyDistribution(channelId);
+      if (!distribution) {
+        console.warn('[MessagingService] No sender key distribution available');
+        return;
+      }
+
+      // Convert to base64 string if it's a Uint8Array
+      const distributionBase64 = typeof distribution === 'string' 
+        ? distribution 
+        : btoa(String.fromCharCode(...distribution));
+
+      // Send to each member via the server
+      // The server queues these for delivery
+      const sendPromises = memberUserIds.map(async (userId) => {
+        try {
+          await api.sendSenderKeyDistribution(channelId, userId, distributionBase64);
+        } catch (err) {
+          console.warn(`[MessagingService] Failed to send sender key to ${userId}:`, err);
+        }
+      });
+
+      await Promise.allSettled(sendPromises);
+      console.log(`[MessagingService] Distributed sender key to ${memberUserIds.length} members`);
+    } catch (err) {
+      console.error('[MessagingService] Failed to distribute sender key:', err);
+    }
+  }
+
+  /**
+   * Process pending sender key distributions for a channel.
+   * Call this when joining a channel or receiving a message we can't decrypt.
+   */
+  async processPendingSenderKeys(channelId: string): Promise<void> {
+    const crypto = getCrypto();
+    const api = getApiClient();
+
+    try {
+      const { distributions } = await api.getPendingSenderKeys(channelId);
+      
+      for (const dist of distributions) {
+        try {
+          await crypto.processSenderKeyDistribution(
+            channelId,
+            dist.senderUserId,
+            dist.distribution // Already base64, crypto layer handles conversion
+          );
+          console.log(`[MessagingService] Processed sender key from ${dist.senderUserId}`);
+        } catch (err) {
+          console.warn(`[MessagingService] Failed to process sender key from ${dist.senderUserId}:`, err);
+        }
+      }
+    } catch (err) {
+      console.error('[MessagingService] Failed to get pending sender keys:', err);
+    }
   }
 
   /**
@@ -296,15 +378,57 @@ class MessagingService {
 
     if (envelope.type === 'channel') {
       // Channel message - decrypt with sender key
-      plaintext = await crypto.decryptChannel(
-        serverMessage.channelId!,
-        serverMessage.senderId,
-        {
-          ciphertext: envelope.ciphertext,
-          senderDeviceId: envelope.senderDeviceId,
-          distributionId: envelope.distributionId || serverMessage.channelId!,
+      try {
+        plaintext = await crypto.decryptChannel(
+          serverMessage.channelId!,
+          serverMessage.senderId,
+          {
+            ciphertext: envelope.ciphertext,
+            senderDeviceId: envelope.senderDeviceId,
+            distributionId: envelope.distributionId || serverMessage.channelId!,
+          }
+        );
+      } catch (decryptError) {
+        // If decryption fails, try to fetch sender key from server
+        console.log('[MessagingService] Channel decryption failed, fetching sender keys...');
+        
+        const api = getApiClient();
+        try {
+          const { distributions } = await api.getPendingSenderKeys(serverMessage.channelId!);
+          
+          // Find distribution from this specific sender
+          const senderDistributions = distributions.filter(
+            d => d.senderUserId === serverMessage.senderId
+          );
+          
+          if (senderDistributions && senderDistributions.length > 0) {
+            // Process each sender key distribution
+            for (const dist of senderDistributions) {
+              await crypto.processSenderKeyDistribution(
+                serverMessage.channelId!,
+                dist.senderUserId,
+                dist.distribution
+              );
+            }
+            
+            // Retry decryption
+            plaintext = await crypto.decryptChannel(
+              serverMessage.channelId!,
+              serverMessage.senderId,
+              {
+                ciphertext: envelope.ciphertext,
+                senderDeviceId: envelope.senderDeviceId,
+                distributionId: envelope.distributionId || serverMessage.channelId!,
+              }
+            );
+          } else {
+            throw new Error(`No sender keys available for user ${serverMessage.senderId} in channel ${serverMessage.channelId}`);
+          }
+        } catch (fetchError) {
+          console.error('[MessagingService] Failed to fetch/process sender keys:', fetchError);
+          throw decryptError; // Re-throw original error
         }
-      );
+      }
     } else if (envelope.type === 'dm') {
       // DM message - decrypt with Signal session
       plaintext = await crypto.decryptDm(serverMessage.senderId, {
@@ -448,7 +572,11 @@ class MessagingService {
   async getSenderKeyDistribution(channelId: string): Promise<string | null> {
     const crypto = getCrypto();
     const distribution = await crypto.getSenderKeyDistribution(channelId);
-    return distribution; // SimpleCrypto returns string or null
+    // Handle both string (SimpleCrypto) and Uint8Array (Signal) return types
+    if (distribution === null) return null;
+    if (typeof distribution === 'string') return distribution;
+    // Convert Uint8Array to base64 string
+    return btoa(String.fromCharCode(...distribution));
   }
 
   /**

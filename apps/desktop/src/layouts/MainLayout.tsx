@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useChatStore } from '../stores/chatStore';
 import { socketClient } from '../lib/socket';
@@ -11,6 +11,7 @@ import UserPanel from '../components/UserPanel';
 import { VoipPage } from '../components/voip';
 import BibleReader from '../components/BibleReader';
 import CryptoExchange from '../components/CryptoExchange';
+import { useFeature, usePremiumFeature, FeatureFlags } from '../hooks';
 
 export default function MainLayout() {
   const { accessToken, user, logout, isTokensLoaded } = useAuthStore();
@@ -19,11 +20,30 @@ export default function MainLayout() {
   const [connecting, setConnecting] = useState(true);
   const [cryptoReady, setCryptoReady] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  
+  // Feature flags
+  const isDexEnabled = useFeature(FeatureFlags.DEX_SWAP);
+  const { enabled: isVoipEnabled } = usePremiumFeature(FeatureFlags.VOIP_PHONE);
+  const isBibleEnabled = useFeature(FeatureFlags.BIBLE_READER);
   
   // Check if we're on specific pages
   const isPhonePage = location.pathname === '/phone';
   const isBiblePage = location.pathname === '/bible';
   const isDexPage = location.pathname === '/dex';
+  
+  // Redirect from disabled features
+  useEffect(() => {
+    if (isDexPage && !isDexEnabled) {
+      navigate('/', { replace: true });
+    }
+    if (isPhonePage && !isVoipEnabled) {
+      navigate('/', { replace: true });
+    }
+    if (isBiblePage && !isBibleEnabled) {
+      navigate('/', { replace: true });
+    }
+  }, [isDexPage, isDexEnabled, isPhonePage, isVoipEnabled, isBiblePage, isBibleEnabled, navigate]);
 
   // Initialize crypto and messaging service
   useEffect(() => {

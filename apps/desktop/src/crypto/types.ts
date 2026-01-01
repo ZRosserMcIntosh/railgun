@@ -177,11 +177,11 @@ export interface RailGunCrypto {
   processSenderKeyDistribution(
     channelId: string,
     senderUserId: string,
-    distribution: Uint8Array
+    distribution: Uint8Array | string
   ): Promise<void>;
 
   /** Get our sender key distribution to send to new members. */
-  getSenderKeyDistribution(channelId: string): Promise<Uint8Array>;
+  getSenderKeyDistribution(channelId: string): Promise<Uint8Array | string | null>;
 
   // ────────────────── Verification ──────────────────
 

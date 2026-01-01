@@ -1,8 +1,11 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef, OnModuleInit } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ModuleRef } from '@nestjs/core';
 
 import { BillingModule } from '../billing/billing.module';
+import { CommunitiesModule } from '../communities/communities.module';
+import { CommunitiesService } from '../communities/communities.service';
 
 import { VoiceGateway } from './voice.gateway';
 import { VoiceService } from './voice.service';
@@ -19,6 +22,7 @@ import { VoiceSfuService } from './voice-sfu.service';
  * - mediasoup: SFU for WebRTC
  * - Redis: Room-to-SFU stickiness
  * - BillingModule: Pro status checks
+ * - CommunitiesModule: Channel permission validation
  * 
  * Before using, install:
  * ```
@@ -37,6 +41,7 @@ import { VoiceSfuService } from './voice-sfu.service';
       }),
     }),
     BillingModule,
+    forwardRef(() => CommunitiesModule),
   ],
   providers: [
     VoiceGateway,
@@ -50,4 +55,20 @@ import { VoiceSfuService } from './voice-sfu.service';
     VoiceRoomService,
   ],
 })
-export class VoiceModule {}
+export class VoiceModule implements OnModuleInit {
+  constructor(
+    private readonly moduleRef: ModuleRef,
+    private readonly voiceService: VoiceService,
+  ) {}
+
+  /**
+   * Wire up CommunitiesService to VoiceService for permission validation.
+   * Done in onModuleInit to avoid circular dependency issues.
+   */
+  onModuleInit() {
+    const communitiesService = this.moduleRef.get(CommunitiesService, { strict: false });
+    if (communitiesService) {
+      this.voiceService.setChannelValidationService(communitiesService);
+    }
+  }
+}

@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Permission } from '@railgun/shared';
 import { CommunityData } from '../../stores/chatStore';
 import { useAuthStore } from '../../stores/authStore';
+import { getApiClient } from '../../lib/api';
 
 // Note: Inline styles used for dynamic role colors - this is intentional
 
@@ -43,8 +44,8 @@ export const CommunitySettingsModal = ({ community, onClose }: CommunitySettings
   const [communityIcon, setCommunityIcon] = useState(community.iconUrl || '');
   const [inviteCode, setInviteCode] = useState(community.inviteCode || '');
   
-  // Mock data - in production, fetch from API
-  const [members] = useState<Member[]>([
+  // Members and roles - loaded from API
+  const [members, setMembers] = useState<Member[]>([
     {
       id: user?.id || '1',
       username: user?.username || 'owner',
@@ -105,6 +106,47 @@ export const CommunitySettingsModal = ({ community, onClose }: CommunitySettings
   // Check if current user is owner or admin
   const isOwner = community.ownerId === user?.id;
   const canManage = isOwner; // TODO: Check for MANAGE_COMMUNITY permission
+  
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Load members and roles from API
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const api = getApiClient();
+        
+        // Load members
+        const { members: apiMembers } = await api.getCommunityMembers(community.id);
+        setMembers(apiMembers.map(m => ({
+          id: m.userId,
+          username: m.username,
+          displayName: m.displayName,
+          avatarUrl: m.avatarUrl,
+          roleIds: m.roleId ? [m.roleId] : [],
+          joinedAt: m.joinedAt,
+        })));
+        
+        // Load roles
+        const { roles: apiRoles } = await api.getCommunityRoles(community.id);
+        setRoles(apiRoles.map(r => ({
+          id: r.id,
+          name: r.name,
+          color: r.color || '#999999',
+          permissions: r.permissions as Permission[],
+          position: r.position,
+        })));
+      } catch (err) {
+        console.error('Failed to load community data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadData();
+  }, [community.id]);
 
   // Handle icon upload
   const handleIconUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,69 +164,137 @@ export const CommunitySettingsModal = ({ community, onClose }: CommunitySettings
   // Handle save settings
   const handleSave = useCallback(async () => {
     try {
-      // TODO: Call API to update community settings
-      console.log('Saving community settings:', {
+      setIsLoading(true);
+      setError(null);
+      const api = getApiClient();
+      
+      await api.updateCommunity(community.id, {
         name: communityName,
         description: communityDescription,
         iconUrl: communityIcon,
       });
       
       onClose();
-    } catch (error) {
-      console.error('Failed to save settings:', error);
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+      setError(err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setIsLoading(false);
     }
-  }, [communityName, communityDescription, communityIcon, onClose]);
+  }, [community.id, communityName, communityDescription, communityIcon, onClose]);
 
   // Handle role assignment
-  const assignRole = useCallback((memberId: string, roleId: string) => {
-    // TODO: Call API to assign role
-    console.log('Assigning role:', { memberId, roleId });
-  }, []);
+  const assignRole = useCallback(async (memberId: string, roleId: string) => {
+    try {
+      const api = getApiClient();
+      await api.assignRole(community.id, memberId, roleId);
+      // Update local state
+      setMembers(prev => prev.map(m => 
+        m.id === memberId ? { ...m, roleIds: [roleId] } : m
+      ));
+    } catch (err) {
+      console.error('Failed to assign role:', err);
+      setError(err instanceof Error ? err.message : 'Failed to assign role');
+    }
+  }, [community.id]);
 
   // Handle role removal
-  const removeRole = useCallback((memberId: string, roleId: string) => {
-    // TODO: Call API to remove role
-    console.log('Removing role:', { memberId, roleId });
-  }, []);
+  const removeRole = useCallback(async (memberId: string, _roleId: string) => {
+    try {
+      // Find default member role
+      const defaultRole = roles.find(r => r.name === 'Member' || r.name === '@everyone');
+      if (defaultRole) {
+        const api = getApiClient();
+        await api.assignRole(community.id, memberId, defaultRole.id);
+        setMembers(prev => prev.map(m => 
+          m.id === memberId ? { ...m, roleIds: [defaultRole.id] } : m
+        ));
+      }
+    } catch (err) {
+      console.error('Failed to remove role:', err);
+      setError(err instanceof Error ? err.message : 'Failed to remove role');
+    }
+  }, [community.id, roles]);
 
   // Handle kick member
-  const kickMember = useCallback((memberId: string) => {
-    // TODO: Call API to kick member
-    console.log('Kicking member:', memberId);
-  }, []);
+  const kickMember = useCallback(async (memberId: string) => {
+    try {
+      const api = getApiClient();
+      await api.kickMember(community.id, memberId);
+      setMembers(prev => prev.filter(m => m.id !== memberId));
+    } catch (err) {
+      console.error('Failed to kick member:', err);
+      setError(err instanceof Error ? err.message : 'Failed to kick member');
+    }
+  }, [community.id]);
 
   // Handle regenerate invite
-  const regenerateInvite = useCallback(() => {
-    const newCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-    setInviteCode(newCode);
-    // TODO: Call API to update invite code
-  }, []);
+  const regenerateInvite = useCallback(async () => {
+    try {
+      const api = getApiClient();
+      const { inviteCode: newCode } = await api.regenerateInviteCode(community.id);
+      setInviteCode(newCode);
+    } catch (err) {
+      console.error('Failed to regenerate invite:', err);
+      setError(err instanceof Error ? err.message : 'Failed to regenerate invite');
+    }
+  }, [community.id]);
 
   // Handle create role
-  const createRole = useCallback(() => {
-    const newRole: Role = {
-      id: `role-${Date.now()}`,
-      name: 'New Role',
-      color: '#3B82F6',
-      permissions: [Permission.READ_MESSAGES, Permission.SEND_MESSAGES],
-      position: roles.length,
-    };
-    setRoles([...roles, newRole]);
-  }, [roles]);
+  const createRole = useCallback(async () => {
+    try {
+      const api = getApiClient();
+      const { role: newRole } = await api.createRole(community.id, {
+        name: 'New Role',
+        color: '#3B82F6',
+        permissions: [Permission.READ_MESSAGES, Permission.SEND_MESSAGES],
+        position: roles.length,
+      });
+      setRoles([...roles, {
+        id: newRole.id,
+        name: newRole.name,
+        color: newRole.color || '#3B82F6',
+        permissions: newRole.permissions as Permission[],
+        position: newRole.position,
+      }]);
+    } catch (err) {
+      console.error('Failed to create role:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create role');
+    }
+  }, [community.id, roles]);
 
   // Handle update role
-  const updateRole = useCallback((roleId: string, updates: Partial<Role>) => {
-    setRoles(roles.map(r => r.id === roleId ? { ...r, ...updates } : r));
-  }, [roles]);
+  const updateRole = useCallback(async (roleId: string, updates: Partial<Role>) => {
+    try {
+      const api = getApiClient();
+      await api.updateRole(community.id, roleId, {
+        name: updates.name,
+        color: updates.color,
+        permissions: updates.permissions,
+        position: updates.position,
+      });
+      setRoles(roles.map(r => r.id === roleId ? { ...r, ...updates } : r));
+    } catch (err) {
+      console.error('Failed to update role:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update role');
+    }
+  }, [community.id, roles]);
 
   // Handle delete role
-  const deleteRole = useCallback((roleId: string) => {
+  const deleteRole = useCallback(async (roleId: string) => {
     if (['owner', 'member'].includes(roleId)) {
       alert('Cannot delete default roles');
       return;
     }
-    setRoles(roles.filter(r => r.id !== roleId));
-  }, [roles]);
+    try {
+      const api = getApiClient();
+      await api.deleteRole(community.id, roleId);
+      setRoles(roles.filter(r => r.id !== roleId));
+    } catch (err) {
+      console.error('Failed to delete role:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete role');
+    }
+  }, [community.id, roles]);
 
   // Toggle permission
   const togglePermission = useCallback((roleId: string, permission: Permission) => {
@@ -361,19 +471,28 @@ export const CommunitySettingsModal = ({ community, onClose }: CommunitySettings
 
                   {/* Save Button */}
                   {canManage && (
-                    <div className="flex justify-end gap-2 pt-4 border-t border-dark-700">
-                      <button
-                        onClick={onClose}
-                        className="px-4 py-2 bg-dark-700 hover:bg-dark-600 text-text-primary rounded transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSave}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded transition-colors"
-                      >
-                        Save Changes
-                      </button>
+                    <div className="flex flex-col gap-2 pt-4 border-t border-dark-700">
+                      {error && (
+                        <div className="p-2 bg-red-900/50 border border-red-700 rounded text-red-300 text-sm">
+                          {error}
+                        </div>
+                      )}
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={onClose}
+                          className="px-4 py-2 bg-dark-700 hover:bg-dark-600 text-text-primary rounded transition-colors"
+                          disabled={isLoading}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSave}
+                          className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded transition-colors disabled:opacity-50"
+                          disabled={isLoading}
+                        >
+                          {isLoading ? 'Saving...' : 'Save Changes'}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

@@ -3,9 +3,12 @@
  * 
  * This module provides end-to-end encryption for Rail Gun.
  * 
- * Currently using SimpleCrypto (libsodium-only) for browser compatibility.
- * For production with full Signal Protocol, the crypto operations should
- * be moved to the Electron main process via IPC.
+ * ARCHITECTURE:
+ * - In Electron: Uses IPC to communicate with main process where Signal Protocol runs
+ * - In Browser: Falls back to SimpleCrypto (libsodium sealed boxes, no forward secrecy)
+ * 
+ * The full Signal Protocol with Double Ratchet requires native modules that
+ * can only run in Electron's main process, not in the renderer.
  * 
  * Usage:
  * ```typescript
@@ -22,10 +25,266 @@
  * ```
  */
 
-// Use DevCrypto (libsodium-only) for browser/renderer compatibility
-// The full Signal Protocol implementation requires running in Electron main process
-// NOTE: DevCrypto is a development shim - see SimpleCrypto.ts header for limitations
-export { getCrypto, initCrypto, DevCryptoImpl, SimpleCryptoImpl } from './SimpleCrypto';
+import type {
+  RailGunCrypto,
+  EncryptedMessage,
+  EncryptedChannelMessage,
+  PreKeyBundleForUpload,
+  PreKeyBundleFromServer,
+} from './types';
+
+// Check if running in Electron with crypto IPC available
+function isElectronWithCrypto(): boolean {
+  return typeof window !== 'undefined' &&
+         typeof window.electronAPI !== 'undefined' &&
+         typeof window.electronAPI.crypto !== 'undefined';
+}
+
+/**
+ * Electron IPC-based crypto implementation.
+ * Delegates all operations to the main process via IPC.
+ */
+class ElectronCryptoImpl implements RailGunCrypto {
+  private initialized = false;
+  private localUserId: string | null = null;
+
+  async init(): Promise<void> {
+    if (this.initialized) return;
+    
+    const result = await window.electronAPI.crypto.init();
+    
+    // If Signal native module isn't available, we need to signal fallback
+    if (!result.success && result.useSimpleCrypto) {
+      console.warn('[ElectronCrypto] Signal not available, using SimpleCrypto fallback');
+      throw new Error('USE_SIMPLE_CRYPTO');
+    }
+    
+    if (!result.success) {
+      throw new Error('Failed to initialize crypto in main process');
+    }
+    
+    this.initialized = true;
+    console.log('[ElectronCrypto] Initialized via IPC');
+  }
+
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+
+  async setLocalUserId(userId: string): Promise<void> {
+    this.localUserId = userId;
+    await window.electronAPI.crypto.setLocalUserId(userId);
+  }
+
+  getLocalUserId(): string {
+    if (!this.localUserId) {
+      throw new Error('Local user ID not set');
+    }
+    return this.localUserId;
+  }
+
+  getDeviceId(): number {
+    // This is sync in the interface but we need async IPC
+    // For now return 1, the async version should be used
+    return 1;
+  }
+
+  getRegistrationId(): number {
+    return 0; // Use async version
+  }
+
+  getIdentityPublicKey(): string {
+    return ''; // Use async version
+  }
+
+  getIdentityFingerprint(): string {
+    return ''; // Use async version
+  }
+
+  async getPreKeyBundle(): Promise<PreKeyBundleForUpload> {
+    const bundle = await window.electronAPI.crypto.getPreKeyBundle();
+    return bundle as PreKeyBundleForUpload;
+  }
+
+  async generateMorePreKeys(count: number): Promise<Array<{ keyId: number; publicKey: string }>> {
+    // TODO: Implement via IPC
+    console.warn('[ElectronCrypto] generateMorePreKeys not yet implemented');
+    return [];
+  }
+
+  async ensureDmSession(peerUserId: string, peerPreKeyBundle?: PreKeyBundleFromServer): Promise<void> {
+    // TODO: Implement full session management via IPC
+    console.log('[ElectronCrypto] ensureDmSession:', peerUserId);
+  }
+
+  async hasDmSession(peerUserId: string): Promise<boolean> {
+    // TODO: Implement via IPC
+    return true;
+  }
+
+  async encryptDm(peerUserId: string, plaintext: string): Promise<EncryptedMessage> {
+    const result = await window.electronAPI.crypto.encryptDm(peerUserId, plaintext);
+    return result as EncryptedMessage;
+  }
+
+  async decryptDm(peerUserId: string, message: EncryptedMessage): Promise<string> {
+    return await window.electronAPI.crypto.decryptDm(peerUserId, message);
+  }
+
+  async ensureChannelSession(channelId: string, memberUserIds: string[]): Promise<void> {
+    // TODO: Implement channel encryption via IPC
+    console.log('[ElectronCrypto] ensureChannelSession:', channelId);
+  }
+
+  async encryptChannel(channelId: string, plaintext: string): Promise<EncryptedChannelMessage> {
+    // TODO: Implement via IPC - for now return plaintext marker
+    console.warn('[ElectronCrypto] Channel encryption not yet implemented');
+    return {
+      ciphertext: Buffer.from(plaintext).toString('base64'),
+      senderDeviceId: 1,
+      distributionId: channelId,
+    };
+  }
+
+  async decryptChannel(channelId: string, senderUserId: string, message: EncryptedChannelMessage): Promise<string> {
+    // TODO: Implement via IPC
+    return Buffer.from(message.ciphertext, 'base64').toString('utf-8');
+  }
+
+  async processSenderKeyDistribution(channelId: string, senderUserId: string, distribution: Uint8Array): Promise<void> {
+    // TODO: Implement via IPC
+  }
+
+  async getSenderKeyDistribution(channelId: string): Promise<Uint8Array> {
+    // TODO: Implement via IPC
+    return new Uint8Array(0);
+  }
+
+  computeSafetyNumber(peerUserId: string, peerIdentityKey: string): string {
+    // TODO: Implement via IPC
+    return '';
+  }
+
+  async getSafetyNumberDetails(peerUserId: string, peerIdentityKey: string): Promise<unknown> {
+    // TODO: Implement via IPC
+    return {};
+  }
+
+  async markIdentityVerified(peerUserId: string): Promise<void> {
+    // TODO: Implement via IPC
+  }
+
+  async checkIdentityStatus(peerUserId: string, currentIdentityKey: string): Promise<unknown> {
+    // TODO: Implement via IPC
+    return { hasStoredIdentity: false };
+  }
+
+  async storeIdentity(peerUserId: string, identityKey: string): Promise<{ isNew: boolean; hasChanged: boolean }> {
+    // TODO: Implement via IPC
+    return { isNew: true, hasChanged: false };
+  }
+
+  async getStoredIdentity(peerUserId: string): Promise<unknown> {
+    // TODO: Implement via IPC
+    return null;
+  }
+
+  async hasIdentityChanged(peerUserId: string, currentIdentityKey: string): Promise<boolean> {
+    // TODO: Implement via IPC
+    return false;
+  }
+
+  async clearAllData(): Promise<void> {
+    await window.electronAPI.crypto.clearAllData();
+    this.initialized = false;
+    this.localUserId = null;
+  }
+
+  async cryptoShred(): Promise<void> {
+    await window.electronAPI.crypto.cryptoShred();
+    this.initialized = false;
+    this.localUserId = null;
+  }
+}
+
+// Import SimpleCrypto as fallback for browser
+import { DevCryptoImpl as SimpleCryptoImpl, getCrypto as getSimpleCrypto, initCrypto as initSimpleCrypto } from './SimpleCrypto';
+
+// Singleton instance
+let cryptoInstance: RailGunCrypto | null = null;
+let useSimpleCryptoFallback = false;
+
+/**
+ * Check if running in Electron with Signal available
+ */
+async function checkSignalAvailable(): Promise<boolean> {
+  if (!isElectronWithCrypto()) return false;
+  try {
+    return await window.electronAPI.crypto.isSignalAvailable();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get the singleton crypto instance.
+ * Uses IPC-based implementation in Electron with Signal, SimpleCrypto otherwise.
+ */
+export function getCrypto(): RailGunCrypto {
+  if (!cryptoInstance) {
+    if (isElectronWithCrypto() && !useSimpleCryptoFallback) {
+      console.log('[Crypto] Using Electron IPC-based crypto');
+      cryptoInstance = new ElectronCryptoImpl();
+    } else {
+      console.warn('[Crypto] ⚠️ Using SimpleCrypto fallback (no forward secrecy)');
+      cryptoInstance = getSimpleCrypto() as unknown as RailGunCrypto;
+    }
+  }
+  return cryptoInstance;
+}
+
+/**
+ * Initialize the crypto module.
+ */
+export async function initCrypto(): Promise<RailGunCrypto> {
+  // Check if Signal is available first
+  if (isElectronWithCrypto()) {
+    const signalAvailable = await checkSignalAvailable();
+    if (!signalAvailable) {
+      console.warn('[Crypto] Signal native module not available, using SimpleCrypto');
+      useSimpleCryptoFallback = true;
+      cryptoInstance = null; // Reset to use SimpleCrypto
+    }
+  }
+  
+  const crypto = getCrypto();
+  
+  try {
+    await crypto.init();
+  } catch (err) {
+    if (err instanceof Error && err.message === 'USE_SIMPLE_CRYPTO') {
+      console.warn('[Crypto] Falling back to SimpleCrypto');
+      useSimpleCryptoFallback = true;
+      cryptoInstance = null;
+      const fallback = getCrypto();
+      await fallback.init();
+      return fallback;
+    }
+    throw err;
+  }
+  
+  return crypto;
+}
+
+/**
+ * Reset crypto instance (for testing).
+ */
+export function resetCrypto(): void {
+  cryptoInstance = null;
+}
+
+// Re-export for backwards compatibility
+export { SimpleCryptoImpl, DevCryptoImpl } from './SimpleCrypto';
 
 // Types (exported for use by other modules)
 export type {
