@@ -180,7 +180,7 @@ jobs:
           done
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
@@ -273,7 +273,7 @@ jobs:
           fi
 
       - name: Upload signed artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: signed-artifacts
           path: signed/
@@ -384,7 +384,7 @@ jobs:
           cat "manifests/${CHANNEL}.json" | jq .
 
       - name: Upload manifest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: update-manifest
           path: manifests/
