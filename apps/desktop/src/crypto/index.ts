@@ -220,8 +220,11 @@ let useSimpleCryptoFallback = false;
 async function checkSignalAvailable(): Promise<boolean> {
   if (!isElectronWithCrypto()) return false;
   try {
-    return await window.electronAPI.crypto.isSignalAvailable();
-  } catch {
+    const available = await window.electronAPI.crypto.isSignalAvailable();
+    console.log('[Crypto] Signal native module available:', available);
+    return available;
+  } catch (err) {
+    console.warn('[Crypto] Failed to check Signal availability:', err);
     return false;
   }
 }
@@ -229,15 +232,23 @@ async function checkSignalAvailable(): Promise<boolean> {
 /**
  * Get the singleton crypto instance.
  * Uses IPC-based implementation in Electron with Signal, SimpleCrypto otherwise.
+ * 
+ * IMPORTANT: When Signal native module is not available, SimpleCrypto is used
+ * which provides real encryption (libsodium sealed boxes) but no forward secrecy.
  */
 export function getCrypto(): RailGunCrypto {
   if (!cryptoInstance) {
-    if (isElectronWithCrypto() && !useSimpleCryptoFallback) {
-      console.log('[Crypto] Using Electron IPC-based crypto');
-      cryptoInstance = new ElectronCryptoImpl();
-    } else {
-      console.warn('[Crypto] ⚠️ Using SimpleCrypto fallback (no forward secrecy)');
+    // Always use SimpleCrypto if:
+    // 1. Not in Electron, or
+    // 2. Signal fallback was requested, or  
+    // 3. Running in Electron but Signal unavailable
+    if (!isElectronWithCrypto() || useSimpleCryptoFallback) {
+      console.log('[Crypto] Using SimpleCrypto (libsodium sealed boxes)');
       cryptoInstance = getSimpleCrypto() as unknown as RailGunCrypto;
+    } else {
+      // This path is only used when Signal IS available in Electron
+      console.log('[Crypto] Using Electron IPC-based crypto (Signal Protocol)');
+      cryptoInstance = new ElectronCryptoImpl();
     }
   }
   return cryptoInstance;
