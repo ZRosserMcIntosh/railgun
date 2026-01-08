@@ -153,7 +153,9 @@ async function ensureSodium(): Promise<void> {
 // ============================================================================
 
 function base64urlEncode(data: Uint8Array): string {
-  return sodium.to_base64(data, sodium.base64_variants.URLSAFE_NO_PADDING);
+  // Ensure we have a proper Uint8Array (some environments return typed array subclasses)
+  const bytes = new Uint8Array(data);
+  return sodium.to_base64(bytes, sodium.base64_variants.URLSAFE_NO_PADDING);
 }
 
 function base64urlDecode(str: string): Uint8Array {
@@ -543,11 +545,11 @@ export async function createEntitlementToken(
   
   // Serialize payload
   const payloadJson = JSON.stringify(payload);
-  const payloadBytes = new TextEncoder().encode(payloadJson);
+  const payloadBytes = new Uint8Array(new TextEncoder().encode(payloadJson));
   const payloadBase64 = base64urlEncode(payloadBytes);
   
-  // Sign
-  const privateKey = sodium.from_base64(privateKeyBase64);
+  // Sign - ensure proper Uint8Array types for libsodium
+  const privateKey = new Uint8Array(sodium.from_base64(privateKeyBase64));
   const signature = sodium.crypto_sign_detached(payloadBytes, privateKey);
   const signatureBase64 = base64urlEncode(signature);
   

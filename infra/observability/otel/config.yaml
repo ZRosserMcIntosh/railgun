@@ -1,0 +1,149 @@
+# RAILGUN OPENTELEMETRY COLLECTOR CONFIGURATION
+# Doctrine-compliant telemetry pipeline
+
+receivers:
+  # OTLP receiver for traces and metrics from Railgun services
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  # Prometheus receiver for scraping existing metrics
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'otel-collector'
+          scrape_interval: 10s
+          static_configs:
+            - targets: ['localhost:8888']
+
+processors:
+  # Batch processor for efficiency
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+    send_batch_max_size: 2048
+
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  # DOCTRINE COMPLIANCE: Attribute filtering
+  # Remove any sensitive attributes that might leak through
+  attributes/remove_sensitive:
+    actions:
+      - key: message.content
+        action: delete
+      - key: message.body
+        action: delete
+      - key: user.email
+        action: delete
+      - key: user.phone
+        action: delete
+      - key: user.ip
+        action: delete
+      - key: user.identity_key
+        action: delete
+      - key: user.prekey
+        action: delete
+      - key: encryption.key
+        action: delete
+      - key: encryption.session
+        action: delete
+      - key: http.request.body
+        action: delete
+      - key: http.response.body
+        action: delete
+
+  # DOCTRINE COMPLIANCE: Hash user identifiers
+  attributes/hash_identifiers:
+    actions:
+      - key: user.id
+        action: hash
+      - key: room.id
+        action: hash
+      - key: session.id
+        action: hash
+
+  # Resource detection
+  resourcedetection:
+    detectors: [env, system, docker]
+    timeout: 2s
+
+  # Filter out health check traces (noise reduction)
+  filter/healthcheck:
+    traces:
+      span:
+        - 'attributes["http.target"] == "/health"'
+        - 'attributes["http.target"] == "/ready"'
+        - 'attributes["http.target"] == "/metrics"'
+
+exporters:
+  # OTLP exporter to Jaeger (Jaeger accepts OTLP natively now)
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+
+  # Prometheus for metrics
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: railgun
+    const_labels:
+      exporter: otel-collector
+
+  # Debug exporter (development only)
+  debug:
+    verbosity: basic
+
+  # Logging exporter for audit trail
+  logging:
+    loglevel: info
+
+extensions:
+  # Health check endpoint
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+  # Performance profiling (development only)
+  pprof:
+    endpoint: 0.0.0.0:1777
+
+  # zPages for debugging
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  extensions: [health_check, pprof, zpages]
+  
+  pipelines:
+    # Traces pipeline
+    traces:
+      receivers: [otlp]
+      processors:
+        - memory_limiter
+        - filter/healthcheck
+        - attributes/remove_sensitive  # DOCTRINE: Remove sensitive data
+        - attributes/hash_identifiers  # DOCTRINE: Hash user IDs
+        - batch
+      exporters: [otlp/jaeger]
+
+    # Metrics pipeline
+    metrics:
+      receivers: [otlp, prometheus]
+      processors:
+        - memory_limiter
+        - attributes/remove_sensitive
+        - batch
+      exporters: [prometheus]
+
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888

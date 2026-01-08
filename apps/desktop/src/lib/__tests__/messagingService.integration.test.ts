@@ -5,46 +5,43 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getMessagingService, resetMessagingService } from '../messagingService';
 
 // ============================================================================
-// MOCK SETUP
+// MOCK SETUP - Must be before imports that use mocked modules
 // ============================================================================
 
 // Mock crypto module
-const mockCrypto = {
-  isInitialized: vi.fn(() => true),
-  init: vi.fn(),
-  setLocalUserId: vi.fn(),
-  getPreKeyBundle: vi.fn(() => ({
-    identityKey: 'mock-identity-key',
-    signedPreKey: { keyId: 1, publicKey: 'mock-signed-prekey', signature: 'mock-sig' },
-    preKeys: [{ keyId: 1, publicKey: 'mock-prekey' }],
-    registrationId: 12345,
-  })),
-  hasDmSession: vi.fn(() => true),
-  ensureDmSession: vi.fn(),
-  encryptDm: vi.fn(() => ({
-    ciphertext: 'encrypted-dm-message',
-    senderDeviceId: 1,
-    type: 'message',
-    registrationId: 12345,
-  })),
-  decryptDm: vi.fn(() => 'decrypted-message'),
-  hasChannelSession: vi.fn(() => true),
-  ensureChannelSession: vi.fn(),
-  encryptChannel: vi.fn(() => ({
-    ciphertext: 'encrypted-channel-message',
-    senderDeviceId: 1,
-    distributionId: 'channel-123',
-  })),
-  decryptChannel: vi.fn(() => 'decrypted-channel-message'),
-  getSenderKeyDistribution: vi.fn(() => 'mock-sender-key-distribution-base64'),
-  processSenderKeyDistribution: vi.fn(),
-};
-
 vi.mock('../../crypto', () => ({
-  getCrypto: () => mockCrypto,
+  getCrypto: () => ({
+    isInitialized: vi.fn(() => true),
+    init: vi.fn(),
+    setLocalUserId: vi.fn(),
+    getPreKeyBundle: vi.fn(() => ({
+      identityKey: 'mock-identity-key',
+      signedPreKey: { keyId: 1, publicKey: 'mock-signed-prekey', signature: 'mock-sig' },
+      preKeys: [{ keyId: 1, publicKey: 'mock-prekey' }],
+      registrationId: 12345,
+    })),
+    hasDmSession: vi.fn(() => true),
+    ensureDmSession: vi.fn(),
+    encryptDm: vi.fn(() => ({
+      ciphertext: 'encrypted-dm-message',
+      senderDeviceId: 1,
+      type: 'message',
+      registrationId: 12345,
+    })),
+    decryptDm: vi.fn(() => 'decrypted-message'),
+    hasChannelSession: vi.fn(() => true),
+    ensureChannelSession: vi.fn(),
+    encryptChannel: vi.fn(() => ({
+      ciphertext: 'encrypted-channel-message',
+      senderDeviceId: 1,
+      distributionId: 'channel-123',
+    })),
+    decryptChannel: vi.fn(() => 'decrypted-channel-message'),
+    getSenderKeyDistribution: vi.fn(() => 'mock-sender-key-distribution-base64'),
+    processSenderKeyDistribution: vi.fn(),
+  }),
 }));
 
 // Mock API client

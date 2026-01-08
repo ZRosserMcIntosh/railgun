@@ -75,4 +75,11 @@ export class UserEntity {
   // Recovery codes stored as JSONB (hashed, never plaintext)
   @Column({ type: 'jsonb', nullable: true, default: [] })
   recoveryCodes!: RecoveryCodeHash[];
+
+  // Password reset token (for email-based recovery)
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  passwordResetToken?: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  passwordResetExpires?: Date | null;
 }

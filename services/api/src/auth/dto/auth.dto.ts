@@ -102,3 +102,32 @@ export interface RotateCodesResponse {
   recoveryCodes: string[];
   message: string;
 }
+
+/**
+ * Request password reset via email
+ */
+export class RequestPasswordResetDto {
+  @IsEmail()
+  email!: string;
+}
+
+/**
+ * Complete password reset with token
+ */
+export class CompletePasswordResetDto {
+  @IsString()
+  @MinLength(32)
+  @MaxLength(128)
+  token!: string;
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  newPassword!: string;
+}
+
+export interface PasswordResetResponse {
+  success: boolean;
+  message: string;
+  recoveryCodes?: string[];
+}

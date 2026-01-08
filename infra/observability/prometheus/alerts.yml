@@ -1,0 +1,225 @@
+# RAILGUN ALERTING RULES
+# Doctrine-compliant: Business metrics only, no user data in alerts
+
+groups:
+  # ============================================
+  # API HEALTH ALERTS
+  # ============================================
+  - name: railgun-api-health
+    rules:
+      - alert: APIHighErrorRate
+        expr: |
+          sum(rate(railgun_http_error_total[5m])) 
+          / sum(rate(railgun_http_request_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "High API error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+          runbook_url: "https://docs.railgun.chat/runbooks/api-errors"
+
+      - alert: APIHighLatency
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(railgun_http_request_duration_bucket[5m])) by (le)
+          ) > 500
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High API latency detected"
+          description: "P95 latency is {{ $value }}ms over the last 5 minutes"
+
+      - alert: APIDown
+        expr: up{job="railgun-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Railgun API is down"
+          description: "API server has been unreachable for more than 1 minute"
+
+  # ============================================
+  # CONNECTION ALERTS
+  # ============================================
+  - name: railgun-connections
+    rules:
+      - alert: HighConnectionCount
+        expr: railgun_connections_active > 50000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High number of active connections"
+          description: "{{ $value }} active connections (threshold: 50000)"
+
+      - alert: ConnectionSpikeDetected
+        expr: |
+          (railgun_connections_active - railgun_connections_active offset 5m) 
+          / railgun_connections_active offset 5m > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Unusual connection spike detected"
+          description: "Connections increased by {{ $value | humanizePercentage }} in 5 minutes"
+
+  # ============================================
+  # MESSAGE THROUGHPUT ALERTS
+  # ============================================
+  - name: railgun-messages
+    rules:
+      - alert: MessageProcessingStalled
+        expr: rate(railgun_messages_processed[5m]) == 0
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "No messages being processed"
+          description: "Message processing appears to have stalled"
+
+      - alert: HighMessageLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(railgun_message_processing_duration_bucket[5m])) by (le)
+          ) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High message processing latency"
+          description: "P95 message latency is {{ $value }}ms"
+
+  # ============================================
+  # P2P FALLBACK ALERTS (DOCTRINE: Critical for sovereignty)
+  # ============================================
+  - name: railgun-p2p
+    rules:
+      - alert: P2PFallbackActivated
+        expr: increase(railgun_p2p_fallback_activations[5m]) > 0
+        for: 0m
+        labels:
+          severity: info
+          team: platform
+        annotations:
+          summary: "P2P fallback mode activated"
+          description: "{{ $value }} activations in the last 5 minutes. Primary transport may be degraded."
+
+      - alert: P2PFallbackSustained
+        expr: increase(railgun_p2p_fallback_activations[1h]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Sustained P2P fallback activity"
+          description: "P2P fallback activated {{ $value }} times in the last hour"
+
+      - alert: P2PLowPeerCount
+        expr: railgun_p2p_peers_active < 10
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Low P2P peer count"
+          description: "Only {{ $value }} P2P peers connected. Resilience may be degraded."
+
+      - alert: P2PHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(railgun_p2p_latency_bucket[5m])) by (le)
+          ) > 500
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High P2P network latency"
+          description: "P95 P2P latency is {{ $value }}ms"
+
+  # ============================================
+  # INFRASTRUCTURE ALERTS
+  # ============================================
+  - name: railgun-infrastructure
+    rules:
+      - alert: HighCPUUsage
+        expr: railgun_system_cpu > 80
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High CPU usage on API server"
+          description: "CPU usage is {{ $value }}%"
+
+      - alert: HighMemoryUsage
+        expr: railgun_system_memory / (1024*1024*1024) > 14
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High memory usage on API server"
+          description: "Memory usage is {{ $value }}GB"
+
+      - alert: DatabaseConnectionPoolExhausted
+        expr: pg_stat_activity_count > 90
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "{{ $value }} active connections (max: 100)"
+
+      - alert: RedisHighMemory
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis is using {{ $value | humanizePercentage }} of max memory"
+
+  # ============================================
+  # SECURITY ALERTS (DOCTRINE: Anomaly detection only)
+  # ============================================
+  - name: railgun-security
+    rules:
+      - alert: UnusualAuthFailures
+        expr: |
+          increase(railgun_auth_failures_total[15m]) > 100
+        for: 0m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Unusual authentication failure rate"
+          description: "{{ $value }} auth failures in the last 15 minutes"
+
+      - alert: RateLimitExceeded
+        expr: |
+          increase(railgun_rate_limit_exceeded_total[5m]) > 1000
+        for: 0m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "High rate limiting activity"
+          description: "{{ $value }} rate limit blocks in the last 5 minutes"
+
+# DOCTRINE COMPLIANCE:
+# - No user identifiers in alert labels or annotations
+# - No message content references
+# - Aggregated metrics only (counts, rates, percentiles)
+# - Security alerts focus on anomalies, not individual actions

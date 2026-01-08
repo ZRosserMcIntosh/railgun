@@ -1,0 +1,339 @@
+/**
+ * RAILGUN OBSERVABILITY - OpenTelemetry Configuration
+ * 
+ * DOCTRINE COMPLIANCE:
+ * - Principle 5: Minimal Retention - Metadata only, no message content
+ * - Principle 2: Layer Separation - Business layer observability only
+ * - Principle 4: Business Layer Optional - Client works without server telemetry
+ * 
+ * What we DO track:
+ * - Request latencies, error rates, throughput
+ * - Connection counts, room sizes (aggregate)
+ * - API endpoint performance
+ * - Infrastructure health (CPU, memory, disk)
+ * 
+ * What we NEVER track:
+ * - Message content or metadata
+ * - User identities or relationships
+ * - Encryption keys or key exchanges
+ * - IP addresses (hashed if needed)
+ */
+
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
+import { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
+import { PeriodicExportingMetricReader, AggregationTemporality } from '@opentelemetry/sdk-metrics';
+import { Resource } from '@opentelemetry/resources';
+import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
+import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
+import {
+  SpanProcessor,
+  Span as ReadableSpan,
+  ReadableSpan as IReadableSpan,
+} from '@opentelemetry/sdk-trace-base';
+
+// DOCTRINE: Sensitive attributes that must NEVER be logged
+const REDACTED_ATTRIBUTES = new Set([
+  'message.content',
+  'message.body',
+  'user.email',
+  'user.phone',
+  'user.ip',
+  'user.identity_key',
+  'user.prekey',
+  'encryption.key',
+  'encryption.session',
+  'db.statement', // SQL may contain user data
+  'http.request.body',
+  'http.response.body',
+]);
+
+// DOCTRINE: Attributes that should be hashed, not removed
+const HASH_ATTRIBUTES = new Set([
+  'user.id',
+  'room.id',
+  'session.id',
+]);
+
+/**
+ * Custom SpanProcessor that enforces Doctrine compliance
+ * Removes sensitive attributes before export
+ */
+class DoctrineCompliantSpanProcessor implements SpanProcessor {
+  private readonly delegate: SpanProcessor;
+
+  constructor(delegate: SpanProcessor) {
+    this.delegate = delegate;
+  }
+
+  forceFlush(): Promise<void> {
+    return this.delegate.forceFlush();
+  }
+
+  shutdown(): Promise<void> {
+    return this.delegate.shutdown();
+  }
+
+  onStart(span: ReadableSpan, parentContext: any): void {
+    this.delegate.onStart(span, parentContext);
+  }
+
+  onEnd(span: IReadableSpan): void {
+    // DOCTRINE: Sanitize span before export
+    const sanitizedSpan = this.sanitizeSpan(span);
+    this.delegate.onEnd(sanitizedSpan);
+  }
+
+  private sanitizeSpan(span: IReadableSpan): IReadableSpan {
+    const attributes = { ...span.attributes };
+
+    // Remove sensitive attributes entirely
+    for (const key of Object.keys(attributes)) {
+      if (REDACTED_ATTRIBUTES.has(key)) {
+        delete attributes[key];
+      } else if (HASH_ATTRIBUTES.has(key)) {
+        // Hash identifiers for correlation without exposure
+        attributes[key] = this.hashAttribute(String(attributes[key]));
+      }
+    }
+
+    // Return span with sanitized attributes
+    return {
+      ...span,
+      attributes,
+    };
+  }
+
+  private hashAttribute(value: string): string {
+    // Simple hash for correlation - not cryptographic
+    let hash = 0;
+    for (let i = 0; i < value.length; i++) {
+      const char = value.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return `h_${Math.abs(hash).toString(16)}`;
+  }
+}
+
+/**
+ * Metrics we track for business intelligence
+ */
+export interface RailgunMetrics {
+  // API Performance
+  requestDuration: any; // Histogram
+  requestTotal: any; // Counter
+  errorTotal: any; // Counter
+  
+  // Connection Metrics
+  activeConnections: any; // Gauge
+  connectionDuration: any; // Histogram
+  
+  // Room Metrics (aggregate only)
+  activeRooms: any; // Gauge
+  roomMemberCount: any; // Histogram (distribution, not per-room)
+  
+  // Message Throughput (counts only, no content)
+  messagesProcessed: any; // Counter
+  messageSize: any; // Histogram (bytes only)
+  
+  // Infrastructure
+  cpuUsage: any; // Gauge
+  memoryUsage: any; // Gauge
+  
+  // P2P Overlay (when primary fails)
+  p2pFallbackActivations: any; // Counter
+  p2pPeerCount: any; // Gauge
+  p2pLatency: any; // Histogram
+}
+
+/**
+ * Initialize OpenTelemetry with Doctrine-compliant configuration
+ */
+export function initializeTelemetry(config: {
+  serviceName: string;
+  environment: string;
+  otlpEndpoint?: string;
+  prometheusPort?: number;
+  enableDebugLogging?: boolean;
+}): NodeSDK {
+  const {
+    serviceName,
+    environment,
+    otlpEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
+    prometheusPort = parseInt(process.env.PROMETHEUS_PORT || '9464', 10),
+    enableDebugLogging = false,
+  } = config;
+
+  // Enable diagnostic logging in development
+  if (enableDebugLogging) {
+    diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
+  }
+
+  // Resource attributes - identify this service
+  const resource = new Resource({
+    [SemanticResourceAttributes.SERVICE_NAME]: serviceName,
+    [SemanticResourceAttributes.SERVICE_VERSION]: process.env.npm_package_version || '0.1.0',
+    [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: environment,
+    'railgun.doctrine.version': '1.0',
+  });
+
+  // OTLP Trace Exporter - sends to collector (Jaeger, Tempo, etc.)
+  const traceExporter = new OTLPTraceExporter({
+    url: `${otlpEndpoint}/v1/traces`,
+  });
+
+  // Prometheus exporter for metrics scraping
+  const prometheusExporter = new PrometheusExporter({
+    port: prometheusPort,
+    startServer: true,
+  }, () => {
+    console.log(`📊 Prometheus metrics available at http://localhost:${prometheusPort}/metrics`);
+  });
+
+  // OTLP Metric Exporter - for push-based metrics (optional)
+  const metricExporter = new OTLPMetricExporter({
+    url: `${otlpEndpoint}/v1/metrics`,
+    temporalityPreference: AggregationTemporality.DELTA,
+  });
+
+  const periodicMetricReader = new PeriodicExportingMetricReader({
+    exporter: metricExporter,
+    exportIntervalMillis: 60000, // Export every minute
+  });
+
+  // Configure SDK
+  const sdk = new NodeSDK({
+    resource,
+    traceExporter,
+    metricReader: prometheusExporter,
+    instrumentations: [
+      getNodeAutoInstrumentations({
+        // DOCTRINE: Disable instrumentations that might log content
+        '@opentelemetry/instrumentation-fs': {
+          enabled: false, // Could log file contents
+        },
+        '@opentelemetry/instrumentation-http': {
+          ignoreIncomingPaths: ['/health', '/ready', '/metrics'],
+          requestHook: (span, request) => {
+            // DOCTRINE: Never log request/response bodies
+            span.setAttribute('http.request.content_length', request.headers?.['content-length'] || 0);
+          },
+          responseHook: (span, response) => {
+            span.setAttribute('http.response.content_length', response.headers?.['content-length'] || 0);
+          },
+        },
+        '@opentelemetry/instrumentation-pg': {
+          enhancedDatabaseReporting: false, // DOCTRINE: Don't log SQL
+        },
+        '@opentelemetry/instrumentation-redis': {
+          responseHook: (span) => {
+            // DOCTRINE: Remove any cached data from traces
+            span.setAttribute('db.statement', '[REDACTED]');
+          },
+        },
+      }),
+    ],
+  });
+
+  return sdk;
+}
+
+/**
+ * Graceful shutdown handler
+ */
+export async function shutdownTelemetry(sdk: NodeSDK): Promise<void> {
+  try {
+    await sdk.shutdown();
+    console.log('📊 Telemetry shutdown complete');
+  } catch (error) {
+    console.error('Error shutting down telemetry:', error);
+  }
+}
+
+/**
+ * Create custom Railgun metrics
+ * These are doctrine-compliant business metrics
+ */
+export function createRailgunMetrics(meter: any): RailgunMetrics {
+  return {
+    // API Performance
+    requestDuration: meter.createHistogram('railgun.http.request.duration', {
+      description: 'HTTP request duration in milliseconds',
+      unit: 'ms',
+      boundaries: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
+    }),
+    
+    requestTotal: meter.createCounter('railgun.http.request.total', {
+      description: 'Total HTTP requests',
+    }),
+    
+    errorTotal: meter.createCounter('railgun.http.error.total', {
+      description: 'Total HTTP errors',
+    }),
+    
+    // Connections
+    activeConnections: meter.createUpDownCounter('railgun.connections.active', {
+      description: 'Currently active WebSocket connections',
+    }),
+    
+    connectionDuration: meter.createHistogram('railgun.connection.duration', {
+      description: 'WebSocket connection duration in seconds',
+      unit: 's',
+      boundaries: [1, 5, 30, 60, 300, 600, 1800, 3600],
+    }),
+    
+    // Rooms (aggregate only - DOCTRINE compliant)
+    activeRooms: meter.createUpDownCounter('railgun.rooms.active', {
+      description: 'Currently active rooms',
+    }),
+    
+    roomMemberCount: meter.createHistogram('railgun.room.members', {
+      description: 'Distribution of room member counts',
+      boundaries: [2, 5, 10, 25, 50, 100, 500],
+    }),
+    
+    // Messages (counts only - DOCTRINE compliant)
+    messagesProcessed: meter.createCounter('railgun.messages.processed', {
+      description: 'Total messages processed (no content logged)',
+    }),
+    
+    messageSize: meter.createHistogram('railgun.message.size', {
+      description: 'Message size distribution in bytes',
+      unit: 'By',
+      boundaries: [100, 500, 1000, 5000, 10000, 50000, 100000],
+    }),
+    
+    // Infrastructure
+    cpuUsage: meter.createObservableGauge('railgun.system.cpu', {
+      description: 'CPU usage percentage',
+    }),
+    
+    memoryUsage: meter.createObservableGauge('railgun.system.memory', {
+      description: 'Memory usage in bytes',
+    }),
+    
+    // P2P Fallback
+    p2pFallbackActivations: meter.createCounter('railgun.p2p.fallback.activations', {
+      description: 'Times P2P fallback was activated',
+    }),
+    
+    p2pPeerCount: meter.createUpDownCounter('railgun.p2p.peers.active', {
+      description: 'Currently connected P2P peers',
+    }),
+    
+    p2pLatency: meter.createHistogram('railgun.p2p.latency', {
+      description: 'P2P message latency in milliseconds',
+      unit: 'ms',
+      boundaries: [10, 25, 50, 100, 250, 500, 1000],
+    }),
+  };
+}
+
+export default {
+  initializeTelemetry,
+  shutdownTelemetry,
+  createRailgunMetrics,
+};

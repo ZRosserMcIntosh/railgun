@@ -10,6 +10,8 @@ export default function RegisterPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [showEmailField, setShowEmailField] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
@@ -49,6 +51,7 @@ export default function RegisterPage() {
       const response = await getApiClient().register({
         username,
         password,
+        email: email.trim() || undefined, // Only send if provided
       });
       
       // Store user data and show recovery codes
@@ -147,6 +150,53 @@ export default function RegisterPage() {
               placeholder="Confirm your password"
               required
             />
+
+            {/* Optional Email Recovery Section */}
+            <div className="pt-2 border-t border-surface-tertiary">
+              <button
+                type="button"
+                onClick={() => setShowEmailField(!showEmailField)}
+                className="flex items-center gap-2 text-sm text-text-muted hover:text-text-secondary transition-colors"
+              >
+                <svg
+                  className={`w-4 h-4 transition-transform ${showEmailField ? 'rotate-90' : ''}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                Add recovery email (optional)
+              </button>
+
+              {showEmailField && (
+                <div className="mt-3 space-y-3">
+                  {/* Privacy Warning */}
+                  <div className="p-3 rounded-md bg-yellow-500/10 border border-yellow-500/30">
+                    <div className="flex gap-2">
+                      <svg className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <div>
+                        <p className="text-sm font-medium text-yellow-500">Privacy Warning</p>
+                        <p className="text-xs text-yellow-500/80 mt-1">
+                          Adding an email enables account recovery but could link your real identity to your Rail Gun username. 
+                          For maximum privacy, skip this and save your recovery codes securely instead.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Input
+                    label="Recovery Email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your@email.com (optional)"
+                  />
+                </div>
+              )}
+            </div>
 
             {error && (
               <div className="p-3 rounded-md bg-red-500/10 border border-red-500/20">

@@ -13,3 +13,4 @@ export * from './updates.types.js';
 export * from './billing.js';
 export * from './qr-auth.js';
 export * from './analytics.js';
+export * from './hybrid-transport.types.js';

@@ -59,12 +59,14 @@ export interface BootstrapNode {
 }
 
 export type BootstrapCapability = 
-  | 'relay'       // Can relay messages for others
-  | 'turn'        // Provides TURN/STUN services
-  | 'bootstrap'   // Provides peer discovery
-  | 'archive'     // Stores historical data
-  | 'update'      // Serves update manifests
-  | 'config';     // Serves config manifests
+  | 'relay'         // Can relay messages for others
+  | 'turn'          // Provides TURN/STUN services
+  | 'bootstrap'     // Provides peer discovery
+  | 'archive'       // Stores historical data
+  | 'update'        // Serves update manifests
+  | 'config'        // Serves config manifests
+  | 'store-forward' // Store-and-forward for offline messages
+  | 'dht';          // Participates in DHT
 
 export interface BootstrapList {
   /** Schema version */

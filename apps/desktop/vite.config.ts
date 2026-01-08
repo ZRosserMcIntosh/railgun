@@ -52,6 +52,8 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@railgun/shared': path.resolve(__dirname, '../../packages/shared/src/index.ts'),
+      // Fix libsodium ESM resolution
+      'libsodium-wrappers': path.resolve(__dirname, '../../node_modules/libsodium-wrappers/dist/modules/libsodium-wrappers.js'),
     },
   },
   server: {
@@ -69,6 +71,10 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['@railgun/shared'],
-    exclude: ['@signalapp/libsignal-client', 'node-gyp-build'],
+    exclude: ['@signalapp/libsignal-client', 'node-gyp-build', 'libsodium-wrappers'],
+    esbuildOptions: {
+      // Handle libsodium ESM issues
+      mainFields: ['module', 'main'],
+    },
   },
 });

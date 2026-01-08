@@ -136,9 +136,10 @@ export class VoiceSfuService implements OnModuleInit, OnModuleDestroy {
 
     try {
       await this.createWorkers();
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(
-        `Failed to initialize mediasoup: ${error?.message || 'Unknown error'}. ` +
+        `Failed to initialize mediasoup: ${errorMessage}. ` +
         'Voice chat will not be available. Install mediasoup with: pnpm add mediasoup',
       );
       // Continue without voice functionality

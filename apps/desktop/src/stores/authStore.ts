@@ -35,8 +35,11 @@ export const useAuthStore = create<AuthState>()(
       isTokensLoaded: false,
 
       initialize: async () => {
+        console.log('[AuthStore] initialize() called');
+        
         // Initialize API client with token getter
         const initializeApiClient = () => {
+          console.log('[AuthStore] Initializing API client');
           initApiClient(
             () => get().accessToken,
             async () => {
@@ -47,41 +50,58 @@ export const useAuthStore = create<AuthState>()(
         };
 
         // Try to load tokens from secure storage
-        const tokens = await secureTokenStore.getTokens();
-        if (tokens) {
-          const hasUser = !!get().user;
-          set({
-            accessToken: tokens.accessToken,
-            refreshToken: tokens.refreshToken,
-            isAuthenticated: hasUser && !!tokens.accessToken, // Only authenticated if BOTH user AND token
-            isTokensLoaded: true,
-            isInitialized: true,
-          });
-          initializeApiClient();
-        } else {
-          // Check for migration from localStorage
-          await secureTokenStore.migrateFromLocalStorage();
-          const migratedTokens = await secureTokenStore.getTokens();
-          if (migratedTokens) {
+        console.log('[AuthStore] Loading tokens from secure storage...');
+        try {
+          const tokens = await secureTokenStore.getTokens();
+          console.log('[AuthStore] Tokens loaded:', !!tokens);
+          if (tokens) {
             const hasUser = !!get().user;
+            console.log('[AuthStore] Setting authenticated state, hasUser:', hasUser);
             set({
-              accessToken: migratedTokens.accessToken,
-              refreshToken: migratedTokens.refreshToken,
-              isAuthenticated: hasUser && !!migratedTokens.accessToken,
+              accessToken: tokens.accessToken,
+              refreshToken: tokens.refreshToken,
+              isAuthenticated: hasUser && !!tokens.accessToken, // Only authenticated if BOTH user AND token
               isTokensLoaded: true,
               isInitialized: true,
             });
             initializeApiClient();
           } else {
-            // No tokens found - user needs to login
-            set({ 
-              isInitialized: true, 
-              isTokensLoaded: true,
-              isAuthenticated: false, // Force not authenticated if no tokens
-            });
-            // Still initialize API client even without token (for login/register)
-            initializeApiClient();
+            // Check for migration from localStorage
+            console.log('[AuthStore] No tokens, checking migration...');
+            await secureTokenStore.migrateFromLocalStorage();
+            const migratedTokens = await secureTokenStore.getTokens();
+            if (migratedTokens) {
+              const hasUser = !!get().user;
+              console.log('[AuthStore] Migrated tokens found, hasUser:', hasUser);
+              set({
+                accessToken: migratedTokens.accessToken,
+                refreshToken: migratedTokens.refreshToken,
+                isAuthenticated: hasUser && !!migratedTokens.accessToken,
+                isTokensLoaded: true,
+                isInitialized: true,
+              });
+              initializeApiClient();
+            } else {
+              // No tokens found - user needs to login
+              console.log('[AuthStore] No tokens found, showing login');
+              set({ 
+                isInitialized: true, 
+                isTokensLoaded: true,
+                isAuthenticated: false, // Force not authenticated if no tokens
+              });
+              // Still initialize API client even without token (for login/register)
+              initializeApiClient();
+            }
           }
+        } catch (error) {
+          console.error('[AuthStore] Error loading tokens:', error);
+          // On error, still set initialized so app doesn't hang
+          set({ 
+            isInitialized: true, 
+            isTokensLoaded: true,
+            isAuthenticated: false,
+          });
+          initializeApiClient();
         }
       },
 

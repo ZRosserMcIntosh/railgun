@@ -1,0 +1,1294 @@
+openapi: 3.1.0
+info:
+  title: Railgun Business API
+  description: |
+    Railgun Business Layer API for relay services, enterprise management, and compliance tooling.
+    
+    **Important:** This API handles ciphertext only. The business layer cannot decrypt message content.
+    
+    ## Authentication
+    - Bearer token (JWT) for user authentication
+    - API key for service-to-service
+    - OAuth 2.0 for enterprise SSO
+    
+    ## Rate Limits
+    - Free tier: 100 requests/minute
+    - Pro tier: 1,000 requests/minute
+    - Enterprise: Custom
+  version: 1.0.0
+  contact:
+    name: Railgun API Support
+    email: api@railgun.app
+  license:
+    name: Proprietary
+    url: https://railgun.app/terms
+
+servers:
+  - url: https://api.railgun.app/v1
+    description: Production
+  - url: https://api.staging.railgun.app/v1
+    description: Staging
+  - url: http://localhost:3000/v1
+    description: Development
+
+tags:
+  - name: Auth
+    description: Authentication and identity
+  - name: Messages
+    description: Message relay (ciphertext only)
+  - name: Keys
+    description: Key bundle management
+  - name: Devices
+    description: Device registration and sync
+  - name: Groups
+    description: Group management
+  - name: Enterprise
+    description: Enterprise admin features
+  - name: Compliance
+    description: Compliance and audit tooling
+  - name: Health
+    description: Service health and status
+
+paths:
+  # ============================================================================
+  # Health & Status
+  # ============================================================================
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service unhealthy
+
+  /status:
+    get:
+      tags: [Health]
+      summary: Detailed service status
+      operationId: getStatus
+      security: []
+      responses:
+        '200':
+          description: Status information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+
+  # ============================================================================
+  # Authentication
+  # ============================================================================
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new account
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Account already exists
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login to existing account
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      operationId: refreshToken
+      security:
+        - refreshToken: []
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout and invalidate tokens
+      operationId: logout
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Logged out successfully
+
+  # ============================================================================
+  # Key Management
+  # ============================================================================
+  /keys/bundle:
+    get:
+      tags: [Keys]
+      summary: Get own key bundle
+      operationId: getOwnKeyBundle
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Key bundle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyBundle'
+        '404':
+          description: No key bundle registered
+
+    put:
+      tags: [Keys]
+      summary: Upload/update key bundle
+      operationId: uploadKeyBundle
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KeyBundle'
+      responses:
+        '200':
+          description: Key bundle updated
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /keys/bundle/{peerId}:
+    get:
+      tags: [Keys]
+      summary: Get another user's key bundle
+      operationId: getKeyBundle
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: peerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Key bundle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyBundle'
+        '404':
+          description: User not found or no key bundle
+
+  /keys/prekeys:
+    post:
+      tags: [Keys]
+      summary: Upload one-time prekeys
+      operationId: uploadPrekeys
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrekeysUpload'
+      responses:
+        '200':
+          description: Prekeys uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    description: Total prekeys now available
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+    get:
+      tags: [Keys]
+      summary: Get prekey count
+      operationId: getPrekeyCount
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Prekey count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+
+  # ============================================================================
+  # Messages (Ciphertext Relay)
+  # ============================================================================
+  /messages:
+    post:
+      tags: [Messages]
+      summary: Send message (relay ciphertext)
+      description: |
+        Relays encrypted message to recipient. Server sees only ciphertext.
+        Message is stored until recipient retrieves it or TTL expires.
+      operationId: sendMessage
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '202':
+          description: Message accepted for delivery
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendMessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Recipient not found
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+    get:
+      tags: [Messages]
+      summary: Retrieve pending messages
+      description: |
+        Retrieves messages queued for this user. Messages are deleted after retrieval
+        unless `keep=true` is specified.
+      operationId: getMessages
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+        - name: keep
+          in: query
+          description: Don't delete messages after retrieval
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Pending messages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagesResponse'
+
+  /messages/{messageId}:
+    delete:
+      tags: [Messages]
+      summary: Acknowledge message delivery
+      description: Confirms message was received, server can delete it
+      operationId: ackMessage
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Message acknowledged
+        '404':
+          description: Message not found
+
+  /messages/batch:
+    delete:
+      tags: [Messages]
+      summary: Acknowledge multiple messages
+      operationId: ackMessageBatch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                messageIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '204':
+          description: Messages acknowledged
+
+  # ============================================================================
+  # Devices
+  # ============================================================================
+  /devices:
+    get:
+      tags: [Devices]
+      summary: List registered devices
+      operationId: listDevices
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Device list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Device'
+
+    post:
+      tags: [Devices]
+      summary: Register new device
+      operationId: registerDevice
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceRegistration'
+      responses:
+        '201':
+          description: Device registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+
+  /devices/{deviceId}:
+    delete:
+      tags: [Devices]
+      summary: Unregister device
+      operationId: unregisterDevice
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Device unregistered
+        '404':
+          description: Device not found
+
+  # ============================================================================
+  # Groups
+  # ============================================================================
+  /groups:
+    post:
+      tags: [Groups]
+      summary: Create group
+      operationId: createGroup
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGroupRequest'
+      responses:
+        '201':
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+
+    get:
+      tags: [Groups]
+      summary: List groups
+      operationId: listGroups
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Group list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Group'
+
+  /groups/{groupId}:
+    get:
+      tags: [Groups]
+      summary: Get group details
+      operationId: getGroup
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Group details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '404':
+          description: Group not found
+
+    patch:
+      tags: [Groups]
+      summary: Update group
+      operationId: updateGroup
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGroupRequest'
+      responses:
+        '200':
+          description: Group updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+
+  /groups/{groupId}/members:
+    post:
+      tags: [Groups]
+      summary: Add member to group
+      operationId: addGroupMember
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddMemberRequest'
+      responses:
+        '200':
+          description: Member added
+        '403':
+          description: Not authorized to add members
+
+  /groups/{groupId}/members/{peerId}:
+    delete:
+      tags: [Groups]
+      summary: Remove member from group
+      operationId: removeGroupMember
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: peerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Member removed
+        '403':
+          description: Not authorized to remove members
+
+  # ============================================================================
+  # Enterprise Admin
+  # ============================================================================
+  /enterprise/workspaces:
+    get:
+      tags: [Enterprise]
+      summary: List workspaces
+      operationId: listWorkspaces
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Workspace list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Workspace'
+        '403':
+          description: Not an enterprise admin
+
+    post:
+      tags: [Enterprise]
+      summary: Create workspace
+      operationId: createWorkspace
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkspaceRequest'
+      responses:
+        '201':
+          description: Workspace created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+
+  /enterprise/workspaces/{workspaceId}/users:
+    get:
+      tags: [Enterprise]
+      summary: List workspace users
+      operationId: listWorkspaceUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkspaceUser'
+
+    post:
+      tags: [Enterprise]
+      summary: Invite user to workspace
+      operationId: inviteWorkspaceUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteUserRequest'
+      responses:
+        '201':
+          description: User invited
+
+  /enterprise/workspaces/{workspaceId}/usage:
+    get:
+      tags: [Enterprise]
+      summary: Get workspace usage statistics
+      operationId: getWorkspaceUsage
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Usage statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageStats'
+
+  # ============================================================================
+  # Compliance (Enterprise)
+  # ============================================================================
+  /compliance/audit-logs:
+    get:
+      tags: [Compliance]
+      summary: Get audit logs
+      description: |
+        Returns audit logs for admin actions. Does NOT include message content
+        (which is encrypted and inaccessible).
+      operationId: getAuditLogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: actorId
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogResponse'
+        '403':
+          description: Not authorized for compliance access
+
+  /compliance/audit-logs/export:
+    post:
+      tags: [Compliance]
+      summary: Export audit logs
+      description: Initiates async export of audit logs
+      operationId: exportAuditLogs
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequest'
+      responses:
+        '202':
+          description: Export initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exportId:
+                    type: string
+                  status:
+                    type: string
+
+  /compliance/retention:
+    get:
+      tags: [Compliance]
+      summary: Get retention policy
+      operationId: getRetentionPolicy
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Retention policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionPolicy'
+
+    put:
+      tags: [Compliance]
+      summary: Update retention policy
+      operationId: updateRetentionPolicy
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetentionPolicy'
+      responses:
+        '200':
+          description: Policy updated
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    refreshToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Access denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+
+    StatusResponse:
+      type: object
+      properties:
+        version:
+          type: string
+        uptime:
+          type: integer
+        services:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [up, down, degraded]
+
+    RegisterRequest:
+      type: object
+      required:
+        - identifier
+        - identityKey
+      properties:
+        identifier:
+          type: string
+          description: Phone number or email
+        identityKey:
+          type: string
+          description: Base64-encoded Ed25519 public key
+        deviceName:
+          type: string
+
+    LoginRequest:
+      type: object
+      required:
+        - identifier
+        - challenge
+        - signature
+      properties:
+        identifier:
+          type: string
+        challenge:
+          type: string
+          description: Server-provided challenge
+        signature:
+          type: string
+          description: Challenge signed with identity key
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+        peerId:
+          type: string
+
+    KeyBundle:
+      type: object
+      required:
+        - identityKey
+        - signedPreKey
+        - signedPreKeySignature
+        - signedPreKeyId
+      properties:
+        identityKey:
+          type: string
+          description: Base64-encoded Ed25519 public key
+        signedPreKey:
+          type: string
+          description: Base64-encoded X25519 public key
+        signedPreKeySignature:
+          type: string
+          description: Signature over signed pre-key
+        signedPreKeyId:
+          type: integer
+        oneTimePreKeys:
+          type: array
+          items:
+            type: object
+            properties:
+              keyId:
+                type: integer
+              key:
+                type: string
+        timestamp:
+          type: integer
+          format: int64
+
+    PrekeysUpload:
+      type: object
+      required:
+        - prekeys
+      properties:
+        prekeys:
+          type: array
+          items:
+            type: object
+            properties:
+              keyId:
+                type: integer
+              key:
+                type: string
+
+    SendMessageRequest:
+      type: object
+      required:
+        - recipientId
+        - envelope
+      properties:
+        recipientId:
+          type: string
+          description: Recipient peer ID
+        envelope:
+          type: string
+          description: Base64-encoded encrypted envelope (ciphertext)
+        ttl:
+          type: integer
+          description: Time-to-live in seconds (default 7 days)
+          default: 604800
+
+    SendMessageResponse:
+      type: object
+      properties:
+        messageId:
+          type: string
+          format: uuid
+        timestamp:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [queued, delivered]
+
+    MessagesResponse:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              messageId:
+                type: string
+                format: uuid
+              senderId:
+                type: string
+              envelope:
+                type: string
+                description: Base64-encoded ciphertext
+              timestamp:
+                type: integer
+                format: int64
+        hasMore:
+          type: boolean
+
+    Device:
+      type: object
+      properties:
+        deviceId:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [desktop, mobile, web]
+        lastSeen:
+          type: string
+          format: date-time
+        registeredAt:
+          type: string
+          format: date-time
+
+    DeviceRegistration:
+      type: object
+      required:
+        - name
+        - type
+        - signingKey
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [desktop, mobile, web]
+        signingKey:
+          type: string
+          description: Device signing key (Base64)
+        pushToken:
+          type: string
+          description: Push notification token (optional)
+
+    CreateGroupRequest:
+      type: object
+      required:
+        - name
+        - members
+      properties:
+        name:
+          type: string
+        members:
+          type: array
+          items:
+            type: string
+          minItems: 1
+
+    Group:
+      type: object
+      properties:
+        groupId:
+          type: string
+        name:
+          type: string
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupMember'
+        createdAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+
+    GroupMember:
+      type: object
+      properties:
+        peerId:
+          type: string
+        role:
+          type: string
+          enum: [owner, admin, member]
+        joinedAt:
+          type: string
+          format: date-time
+
+    UpdateGroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+
+    AddMemberRequest:
+      type: object
+      required:
+        - peerId
+      properties:
+        peerId:
+          type: string
+        role:
+          type: string
+          enum: [admin, member]
+          default: member
+
+    Workspace:
+      type: object
+      properties:
+        workspaceId:
+          type: string
+        name:
+          type: string
+        plan:
+          type: string
+          enum: [free, pro, team, enterprise]
+        userCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateWorkspaceRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        plan:
+          type: string
+          enum: [free, pro, team, enterprise]
+          default: free
+
+    WorkspaceUser:
+      type: object
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [owner, admin, member]
+        status:
+          type: string
+          enum: [active, invited, suspended]
+        lastActive:
+          type: string
+          format: date-time
+
+    InviteUserRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [admin, member]
+          default: member
+
+    UsageStats:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date
+            end:
+              type: string
+              format: date
+        activeUsers:
+          type: integer
+        messageCount:
+          type: integer
+          description: Number of messages (not content, just count)
+        storageUsed:
+          type: integer
+          description: Bytes of ciphertext stored
+
+    AuditLogResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLogEntry'
+        cursor:
+          type: string
+        hasMore:
+          type: boolean
+
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        actor:
+          type: object
+          properties:
+            id:
+              type: string
+            email:
+              type: string
+            type:
+              type: string
+              enum: [user, admin, system]
+        action:
+          type: string
+        target:
+          type: object
+          properties:
+            type:
+              type: string
+            id:
+              type: string
+        metadata:
+          type: object
+        ip:
+          type: string
+
+    ExportRequest:
+      type: object
+      required:
+        - workspaceId
+      properties:
+        workspaceId:
+          type: string
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        format:
+          type: string
+          enum: [json, csv]
+          default: json
+
+    RetentionPolicy:
+      type: object
+      properties:
+        messageRetentionDays:
+          type: integer
+          description: Days to retain messages (0 = forever)
+        auditLogRetentionDays:
+          type: integer
+        deletedContentRetentionDays:
+          type: integer
+          description: Days to retain deleted content before purge

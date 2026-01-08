@@ -1,0 +1,101 @@
+# RAILGUN ALERTMANAGER CONFIGURATION
+# Doctrine-compliant alerting - no user data in notifications
+
+global:
+  # Default SMTP configuration (set via environment in production)
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alerts@railgun.chat'
+  # smtp_auth_username: ''
+  # smtp_auth_password: ''
+  
+  # Slack webhook (configure in production)
+  # slack_api_url: 'https://hooks.slack.com/services/...'
+
+  # PagerDuty (configure in production)
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+
+  # Resolve timeout
+  resolve_timeout: 5m
+
+# Route configuration
+route:
+  # Default receiver
+  receiver: 'platform-team'
+  
+  # Group alerts by alertname and severity
+  group_by: ['alertname', 'severity']
+  
+  # Wait before sending first notification
+  group_wait: 30s
+  
+  # Wait before sending subsequent notifications
+  group_interval: 5m
+  
+  # Wait before re-sending an alert
+  repeat_interval: 4h
+
+  # Route specific alerts to different receivers
+  routes:
+    # Critical alerts go to PagerDuty
+    - match:
+        severity: critical
+      receiver: 'pagerduty-critical'
+      continue: true
+
+    # Security alerts go to security team
+    - match:
+        team: security
+      receiver: 'security-team'
+
+    # P2P fallback alerts (DOCTRINE: sovereignty monitoring)
+    - match_re:
+        alertname: '^P2P.*'
+      receiver: 'p2p-monitoring'
+      group_wait: 10s
+      group_interval: 1m
+
+# Inhibition rules - suppress redundant alerts
+inhibit_rules:
+  # If API is down, suppress other API alerts
+  - source_match:
+      alertname: 'APIDown'
+    target_match_re:
+      alertname: '^API.*'
+    equal: ['instance']
+
+  # If database is down, suppress connection alerts
+  - source_match:
+      alertname: 'DatabaseConnectionPoolExhausted'
+    target_match:
+      alertname: 'HighDatabaseConnections'
+    equal: ['instance']
+
+# Receiver configurations
+receivers:
+  # Default platform team receiver
+  - name: 'platform-team'
+    webhook_configs:
+      - url: 'http://localhost:9999/webhook'  # Placeholder for development
+        send_resolved: true
+
+  # PagerDuty for critical alerts
+  - name: 'pagerduty-critical'
+    webhook_configs:
+      - url: 'http://localhost:9999/pagerduty'  # Placeholder for development
+        send_resolved: true
+
+  # Security team receiver
+  - name: 'security-team'
+    webhook_configs:
+      - url: 'http://localhost:9999/security'  # Placeholder for development
+        send_resolved: true
+
+  # P2P monitoring (sovereignty alerts)
+  - name: 'p2p-monitoring'
+    webhook_configs:
+      - url: 'http://localhost:9999/p2p'  # Placeholder for development
+        send_resolved: true
+
+# Templates for notifications
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'

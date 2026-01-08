@@ -87,6 +87,51 @@ export class UsersService {
   }
 
   /**
+   * Set password reset token for a user
+   * Token expires after 1 hour
+   */
+  async setPasswordResetToken(userId: string, token: string): Promise<void> {
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await this.userRepository.update(userId, {
+      passwordResetToken: token,
+      passwordResetExpires: expiresAt,
+    });
+  }
+
+  /**
+   * Find user by password reset token
+   * Returns null if token is invalid or expired
+   */
+  async findByPasswordResetToken(token: string): Promise<UserEntity | null> {
+    const user = await this.userRepository.findOne({
+      where: { passwordResetToken: token },
+    });
+    
+    if (!user || !user.passwordResetExpires) {
+      return null;
+    }
+    
+    // Check if token has expired
+    if (new Date() > user.passwordResetExpires) {
+      // Token expired, clean it up
+      await this.clearPasswordResetToken(user.id);
+      return null;
+    }
+    
+    return user;
+  }
+
+  /**
+   * Clear password reset token after use or expiry
+   */
+  async clearPasswordResetToken(userId: string): Promise<void> {
+    await this.userRepository.update(userId, {
+      passwordResetToken: null,
+      passwordResetExpires: null,
+    });
+  }
+
+  /**
    * Get user's recovery codes (for verification)
    */
   async getRecoveryCodes(userId: string): Promise<RecoveryCodeHash[]> {

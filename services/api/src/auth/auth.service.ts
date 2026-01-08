@@ -336,6 +336,83 @@ export class AuthService {
     return user;
   }
 
+  /**
+   * Request password reset via email
+   * 
+   * SECURITY: Always returns success to prevent email enumeration
+   * If email exists, sends reset link. If not, silently succeeds.
+   */
+  async requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
+    const user = await this.usersService.findByEmail(email);
+    
+    if (user) {
+      // Generate reset token (valid for 1 hour)
+      const resetToken = await this.generatePasswordResetToken(user.id);
+      
+      // TODO: Send email with reset link
+      // In production, integrate with email service (SendGrid, SES, etc.)
+      // The link would be: https://app.railgun.xyz/reset-password?token=${resetToken}
+      console.log(`[Password Reset] Token generated for user ${user.id}: ${resetToken.slice(0, 8)}...`);
+      
+      // For now, store token for verification
+      await this.usersService.setPasswordResetToken(user.id, resetToken);
+    }
+    
+    // Always return success to prevent email enumeration
+    return {
+      success: true,
+      message: 'If an account with that email exists, a reset link has been sent.',
+    };
+  }
+
+  /**
+   * Complete password reset with token from email
+   */
+  async completePasswordReset(
+    token: string,
+    newPassword: string
+  ): Promise<{ success: boolean; message: string; recoveryCodes?: string[] }> {
+    // Verify token and get user
+    const user = await this.usersService.findByPasswordResetToken(token);
+    
+    if (!user) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+    
+    // Update password
+    await this.usersService.updatePassword(user.id, newPassword);
+    
+    // Clear reset token
+    await this.usersService.clearPasswordResetToken(user.id);
+    
+    // Invalidate all existing sessions
+    await this.usersService.updateRefreshToken(user.id, null);
+    
+    // Generate new recovery codes (security: password reset should rotate codes)
+    const { plaintextCodes, hashedCodes } = generateRecoveryCodes(this.recoveryCodeSecret);
+    await this.usersService.updateRecoveryCodes(user.id, hashedCodes);
+    
+    return {
+      success: true,
+      message: 'Password has been reset successfully. New recovery codes have been generated.',
+      recoveryCodes: plaintextCodes,
+    };
+  }
+
+  /**
+   * Generate a secure password reset token
+   */
+  private async generatePasswordResetToken(userId: string): Promise<string> {
+    const payload = {
+      sub: userId,
+      purpose: 'password-reset',
+      tokenId: generateUUID(),
+    };
+    
+    // Token expires in 1 hour
+    return this.jwtService.signAsync(payload, { expiresIn: '1h' });
+  }
+
   private async generateTokens(payload: TokenPayload): Promise<AuthTokens> {
     const accessExpiry = this.configService.get<string>('JWT_ACCESS_EXPIRY', '15m');
     const refreshExpiry = this.configService.get<string>('JWT_REFRESH_EXPIRY', '7d');

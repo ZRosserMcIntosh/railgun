@@ -1,6 +1,6 @@
 import { Controller, Post, Body, UseGuards, Request, HttpCode, HttpStatus, Delete } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, RefreshTokenDto, RecoverAccountDto } from './dto';
+import { RegisterDto, LoginDto, RefreshTokenDto, RecoverAccountDto, RequestPasswordResetDto, CompletePasswordResetDto } from './dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 interface AuthenticatedRequest {
@@ -101,5 +101,28 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async nukeAccount(@Request() req: AuthenticatedRequest) {
     return this.authService.nukeAccount(req.user.id);
+  }
+
+  /**
+   * Request password reset via email
+   * 
+   * SECURITY: Always returns success to prevent email enumeration
+   * SECURITY: Rate limited to prevent abuse
+   */
+  @Post('password-reset/request')
+  @HttpCode(HttpStatus.OK)
+  async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
+    return this.authService.requestPasswordReset(dto.email);
+  }
+
+  /**
+   * Complete password reset with token from email
+   * 
+   * SECURITY: Token is single-use and expires after 1 hour
+   */
+  @Post('password-reset/complete')
+  @HttpCode(HttpStatus.OK)
+  async completePasswordReset(@Body() dto: CompletePasswordResetDto) {
+    return this.authService.completePasswordReset(dto.token, dto.newPassword);
   }
 }

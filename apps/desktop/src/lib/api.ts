@@ -195,6 +195,34 @@ class ApiClient {
     });
   }
 
+  /**
+   * Request password reset via email
+   * Note: Always returns success for privacy (doesn't reveal if email exists)
+   */
+  async requestPasswordReset(data: { email: string }) {
+    return this.request<{
+      success: boolean;
+      message: string;
+    }>('/auth/password-reset/request', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Complete password reset with token from email
+   */
+  async completePasswordReset(data: { token: string; newPassword: string }) {
+    return this.request<{
+      success: boolean;
+      message: string;
+      recoveryCodes?: string[];
+    }>('/auth/password-reset/complete', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   // ==================== Account Destruction ====================
 
   /**
