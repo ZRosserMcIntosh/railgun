@@ -139,6 +139,14 @@ class MessagingService {
     const user = useAuthStore.getState().user;
     const clientNonce = generateUUID();
 
+    // Get conversation ID from server-provided DM list (for DMs)
+    const dmConversationId = recipientId ? this.getDmConversationId(recipientId) : null;
+    
+    // For DMs, we need the conversation ID - if not found, the DM hasn't been started yet
+    if (recipientId && !dmConversationId) {
+      throw new Error('DM conversation not found. Start a DM first via the API.');
+    }
+
     // Create optimistic message for UI
     const optimisticMessage: DecryptedMessage = {
       id: `pending-${clientNonce}`,
@@ -146,7 +154,7 @@ class MessagingService {
       senderUsername: user?.username,
       content,
       channelId,
-      conversationId: recipientId ? this.getDmConversationId(recipientId) : undefined,
+      conversationId: dmConversationId || undefined,
       conversationType: channelId ? ConversationType.CHANNEL : ConversationType.DM,
       timestamp: Date.now(),
       replyToId,
@@ -517,6 +525,12 @@ class MessagingService {
     const chatStore = useChatStore.getState();
     const conversationId = this.getDmConversationId(userId);
 
+    // If conversation not found, it hasn't been started yet
+    if (!conversationId) {
+      console.warn('[MessagingService] DM conversation not found for user:', userId);
+      return [];
+    }
+
     chatStore.setLoadingMessages(true);
 
     try {
@@ -591,10 +605,15 @@ class MessagingService {
 
   // ==================== Helpers ====================
 
-  private getDmConversationId(otherUserId: string): string {
-    if (!this.localUserId) throw new Error('Not initialized');
-    const sorted = [this.localUserId, otherUserId].sort();
-    return `${sorted[0]}:${sorted[1]}`;
+  /**
+   * Get the server-provided conversation ID for a DM.
+   * IMPORTANT: This uses the server-generated HMAC ID stored in the chat store,
+   * NOT a locally-derived ID. This ensures WebSocket rooms match message storage.
+   */
+  getDmConversationId(otherUserId: string): string | null {
+    const chatStore = useChatStore.getState();
+    const dm = chatStore.dmConversations.find(c => c.peerId === otherUserId);
+    return dm?.conversationId || null;
   }
 
   private convertBundle(bundle: PreKeyBundleFromServer) {

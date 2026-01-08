@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MessageEntity } from './message.entity';
 import { MessageStatus, ConversationType } from '@railgun/shared';
+import { DmService } from './dm.service';
 
 /** DTO for creating a message */
 export interface CreateMessageDto {
@@ -35,6 +36,8 @@ export class MessagesService {
   constructor(
     @InjectRepository(MessageEntity)
     private readonly messageRepository: Repository<MessageEntity>,
+    @Inject(forwardRef(() => DmService))
+    private readonly dmService: DmService,
   ) {}
 
   /**
@@ -47,9 +50,12 @@ export class MessagesService {
     // Determine conversation type
     if (dto.recipientId && !dto.channelId) {
       conversationType = ConversationType.DM;
-      // Create consistent conversation ID from sorted user IDs
-      const sortedIds = [senderId, dto.recipientId].sort();
-      conversationId = `${sortedIds[0]}:${sortedIds[1]}`;
+      // Use DmService to get the HMAC-derived conversation ID
+      // This ensures consistency across WebSocket rooms and message storage
+      const isSelfDm = senderId === dto.recipientId;
+      conversationId = isSelfDm
+        ? this.dmService.generateSelfDmId(senderId)
+        : this.dmService.generateConversationId(senderId, dto.recipientId);
     }
 
     const message = this.messageRepository.create({
@@ -107,8 +113,11 @@ export class MessagesService {
     limit = 50,
     before?: string,
   ): Promise<MessageEntity[]> {
-    const sortedIds = [userId1, userId2].sort();
-    const conversationId = `${sortedIds[0]}:${sortedIds[1]}`;
+    // Use HMAC-derived conversation ID for lookup
+    const isSelfDm = userId1 === userId2;
+    const conversationId = isSelfDm
+      ? this.dmService.generateSelfDmId(userId1)
+      : this.dmService.generateConversationId(userId1, userId2);
 
     const queryBuilder = this.messageRepository
       .createQueryBuilder('message')
