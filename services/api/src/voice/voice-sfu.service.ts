@@ -127,7 +127,22 @@ export class VoiceSfuService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit(): Promise<void> {
-    await this.createWorkers();
+    // Skip mediasoup initialization if VOICE_ENABLED is not true
+    const voiceEnabled = this.configService.get<string>('VOICE_ENABLED', 'false');
+    if (voiceEnabled !== 'true') {
+      this.logger.warn('Voice chat disabled (VOICE_ENABLED != true). Skipping mediasoup initialization.');
+      return;
+    }
+
+    try {
+      await this.createWorkers();
+    } catch (error) {
+      this.logger.warn(
+        `Failed to initialize mediasoup: ${error?.message || 'Unknown error'}. ` +
+        'Voice chat will not be available. Install mediasoup with: pnpm add mediasoup',
+      );
+      // Continue without voice functionality
+    }
   }
 
   async onModuleDestroy(): Promise<void> {

@@ -54,3 +54,12 @@ secrets/
 # OS files
 Thumbs.db
 .DS_Store
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+**/.terraform/
+**/terraform.tfstate*
