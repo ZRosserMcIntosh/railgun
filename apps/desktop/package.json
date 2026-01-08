@@ -45,7 +45,7 @@
     "autoprefixer": "^10.4.16",
     "buffer": "^6.0.3",
     "concurrently": "^8.2.2",
-    "electron": "^28.1.0",
+    "electron": "^39.2.7",
     "electron-builder": "^24.9.1",
     "jsdom": "^27.4.0",
     "postcss": "^8.4.32",
