@@ -10,7 +10,7 @@
  * - User ID is derived from public key (hash) for privacy
  */
 
-import * as sodium from 'libsodium-wrappers';
+import sodium from 'libsodium-wrappers';
 import { getCrypto } from '../crypto';
 
 // ============================================================================

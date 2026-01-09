@@ -10,7 +10,7 @@
  * - Tokens are bound to user identity (public key)
  */
 
-import * as sodium from 'libsodium-wrappers';
+import sodium from 'libsodium-wrappers';
 import {
   Capability,
   Plan,

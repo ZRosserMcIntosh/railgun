@@ -32,7 +32,7 @@
  * about its limitations.
  */
 
-import * as sodium from 'libsodium-wrappers';
+import sodium from 'libsodium-wrappers';
 import {
   computeSafetyNumberFromBase64,
   createIdentityStore,
