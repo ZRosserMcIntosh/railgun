@@ -10,6 +10,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
+import { ConfigService } from '@nestjs/config';
 import { AuthSessionService } from './auth-session.service';
 
 /**
@@ -26,11 +27,43 @@ import { AuthSessionService } from './auth-session.service';
  * 2. Client sends: { event: 'subscribe', data: { sessionId: '...' } }
  * 3. Server sends session updates: { event: 'session.update', data: { ... } }
  * 4. Client can unsubscribe: { event: 'unsubscribe', data: { sessionId: '...' } }
+ * 
+ * SECURITY: CORS restricted, rate limiting on subscriptions
  */
 @WebSocketGateway({
   namespace: '/auth',
   cors: {
-    origin: '*', // Configure properly in production
+    // SECURITY: Restrict CORS to allowed origins (configured via environment)
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      // Allow requests with no origin (e.g., mobile apps, same-origin)
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      
+      // In development, allow localhost
+      if (process.env.NODE_ENV !== 'production') {
+        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+          callback(null, true);
+          return;
+        }
+      }
+      
+      // Check against allowed origins from config
+      const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '').split(',').filter(Boolean);
+      if (allowedOrigins.length === 0 && process.env.NODE_ENV !== 'production') {
+        // Allow all in dev if no origins configured
+        callback(null, true);
+        return;
+      }
+      
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('CORS not allowed'), false);
+      }
+    },
+    credentials: true,
   },
 })
 export class AuthSessionGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -44,8 +77,15 @@ export class AuthSessionGateway implements OnGatewayConnection, OnGatewayDisconn
   
   // Map of socket ID -> Set of session IDs
   private socketSessions = new Map<string, Set<string>>();
+  
+  // Rate limiting: track subscription attempts per socket
+  private socketSubscriptionCount = new Map<string, { count: number; resetAt: number }>();
+  private readonly MAX_SUBSCRIPTIONS_PER_MINUTE = 20;
 
-  constructor(private readonly authSessionService: AuthSessionService) {}
+  constructor(
+    private readonly authSessionService: AuthSessionService,
+    private readonly configService: ConfigService,
+  ) {}
 
   /**
    * Handle new WebSocket connection
@@ -75,10 +115,31 @@ export class AuthSessionGateway implements OnGatewayConnection, OnGatewayDisconn
       }
       this.socketSessions.delete(client.id);
     }
+    
+    // Clean up rate limit tracking
+    this.socketSubscriptionCount.delete(client.id);
+  }
+
+  /**
+   * Check rate limit for subscription attempts
+   */
+  private checkSubscriptionRateLimit(clientId: string): boolean {
+    const now = Date.now();
+    let entry = this.socketSubscriptionCount.get(clientId);
+    
+    if (!entry || now > entry.resetAt) {
+      entry = { count: 0, resetAt: now + 60000 }; // 1 minute window
+      this.socketSubscriptionCount.set(clientId, entry);
+    }
+    
+    entry.count++;
+    return entry.count <= this.MAX_SUBSCRIPTIONS_PER_MINUTE;
   }
 
   /**
    * Subscribe to session updates
+   * 
+   * SECURITY: Rate limited to prevent abuse
    */
   @SubscribeMessage('subscribe')
   async handleSubscribe(
@@ -86,6 +147,12 @@ export class AuthSessionGateway implements OnGatewayConnection, OnGatewayDisconn
     @MessageBody() data: { sessionId: string },
   ): Promise<{ success: boolean; error?: string }> {
     const { sessionId } = data;
+
+    // SECURITY: Rate limit subscription attempts
+    if (!this.checkSubscriptionRateLimit(client.id)) {
+      this.logger.warn(`Rate limit exceeded for client ${client.id}`);
+      return { success: false, error: 'Rate limit exceeded' };
+    }
 
     try {
       // Verify session exists

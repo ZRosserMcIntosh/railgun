@@ -8,6 +8,7 @@ import {
   Param,
   UseGuards,
   Request,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   CommunitiesService,
@@ -54,20 +55,34 @@ export class CommunitiesController {
   /**
    * Get a community by ID.
    * GET /communities/:id
+   * 
+   * SECURITY: Only members can view non-public community details
    */
   @Get(':id')
-  async getCommunity(@Param('id') id: string) {
+  async getCommunity(@Request() req: AuthRequest, @Param('id') id: string) {
     const community = await this.communitiesService.getCommunity(id);
+    
+    // SECURITY: Check if user is a member for non-public communities
+    if (!community.isPublic) {
+      const isMember = await this.communitiesService.isMember(id, req.user.id);
+      if (!isMember) {
+        throw new ForbiddenException('You must be a member to view this community');
+      }
+    }
+    
     return { community };
   }
 
   /**
    * Get a community by invite code.
    * GET /communities/invite/:code
+   * 
+   * This is intentionally accessible without membership to allow previewing before joining
    */
   @Get('invite/:code')
   async getCommunityByInvite(@Param('code') code: string) {
     const community = await this.communitiesService.getCommunityByInvite(code);
+    // Return limited info for preview (no internal details)
     return {
       community: {
         id: community.id,
@@ -151,9 +166,17 @@ export class CommunitiesController {
   /**
    * Get community members.
    * GET /communities/:id/members
+   * 
+   * SECURITY: Only members can view member list
    */
   @Get(':id/members')
-  async getMembers(@Param('id') id: string) {
+  async getMembers(@Request() req: AuthRequest, @Param('id') id: string) {
+    // SECURITY: Check membership before exposing member list
+    const isMember = await this.communitiesService.isMember(id, req.user.id);
+    if (!isMember) {
+      throw new ForbiddenException('You must be a member to view the member list');
+    }
+    
     const members = await this.communitiesService.getMembers(id);
     return {
       members: members.map((m) => ({
@@ -188,9 +211,17 @@ export class CommunitiesController {
   /**
    * Get community roles.
    * GET /communities/:id/roles
+   * 
+   * SECURITY: Only members can view roles
    */
   @Get(':id/roles')
-  async getRoles(@Param('id') id: string) {
+  async getRoles(@Request() req: AuthRequest, @Param('id') id: string) {
+    // SECURITY: Check membership before exposing role list
+    const isMember = await this.communitiesService.isMember(id, req.user.id);
+    if (!isMember) {
+      throw new ForbiddenException('You must be a member to view roles');
+    }
+    
     const roles = await this.communitiesService.getCommunityRoles(id);
     return { roles };
   }

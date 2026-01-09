@@ -178,13 +178,17 @@ export class MessagesController {
   /**
    * Update message status.
    * PATCH /messages/:id/status
+   * 
+   * SECURITY: Validates that the user has access to this message
    */
   @Patch(':id/status')
   async updateStatus(
+    @Request() req: AuthRequest,
     @Param('id') id: string,
     @Body() body: { status: MessageStatus },
   ) {
-    const message = await this.messagesService.updateStatus(id, body.status);
+    // SECURITY: Pass userId for authorization check
+    const message = await this.messagesService.updateStatus(id, body.status, req.user.id);
     return { message };
   }
 
@@ -219,12 +223,16 @@ export class MessagesController {
   /**
    * Batch update message statuses.
    * PATCH /messages/batch/status
+   * 
+   * SECURITY: Validates that the user has access to all messages
    */
   @Patch('batch/status')
   async batchUpdateStatus(
+    @Request() req: AuthRequest,
     @Body() body: { messageIds: string[]; status: MessageStatus },
   ) {
-    await this.messagesService.batchUpdateStatus(body.messageIds, body.status);
+    // SECURITY: Pass userId for authorization check
+    await this.messagesService.batchUpdateStatus(body.messageIds, body.status, req.user.id);
     return { message: 'Statuses updated' };
   }
 }

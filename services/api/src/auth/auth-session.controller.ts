@@ -9,10 +9,12 @@ import {
   HttpStatus,
   ParseUUIDPipe,
   Logger,
+  UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { AuthSessionService } from './auth-session.service';
 import { IsString, IsNotEmpty, IsIn } from 'class-validator';
+import { RateLimitGuard, RateLimit } from './rate-limit.guard';
 
 /**
  * DTO for creating an auth session
@@ -65,6 +67,16 @@ interface SessionStatusResponse {
 interface CompleteSessionResponse {
   success: boolean;
   message: string;
+  exchangeToken: string; // One-time token to exchange for JWT
+}
+
+/**
+ * DTO for exchanging session for token
+ */
+export class ExchangeTokenDto {
+  @IsString()
+  @IsNotEmpty()
+  exchangeToken!: string;
 }
 
 /**
@@ -93,8 +105,11 @@ interface TokenExchangeResponse {
  * 2. Web polls /sessions/:id for status updates
  * 3. Mobile scans QR → calls /sessions/:id/complete
  * 4. Web sees status=completed → calls /sessions/:id/exchange for JWT
+ * 
+ * SECURITY: Rate limiting applied to prevent abuse
  */
 @Controller('auth/sessions')
+@UseGuards(RateLimitGuard)
 export class AuthSessionController {
   private readonly logger = new Logger(AuthSessionController.name);
 
@@ -106,9 +121,12 @@ export class AuthSessionController {
    * POST /auth/sessions
    * Body: { clientType: 'web' | 'desktop' }
    * Returns: { sessionId, qrPayload, expiresAt, pollUrl }
+   * 
+   * SECURITY: Rate limited to prevent session flooding
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @RateLimit({ limit: 10, windowMs: 60000 }) // 10 sessions per minute per IP
   async createSession(
     @Body() dto: CreateSessionDto,
     @Req() req: Request,
@@ -173,7 +191,9 @@ export class AuthSessionController {
    * 
    * POST /auth/sessions/:id/complete
    * Body: { secret, userId, userPublicKey }
-   * Returns: { success, message }
+   * Returns: { success, message, exchangeToken }
+   * 
+   * SECURITY: The exchangeToken must be passed to the web client to exchange for JWT
    */
   @Post(':id/complete')
   @HttpCode(HttpStatus.OK)
@@ -184,7 +204,7 @@ export class AuthSessionController {
   ): Promise<CompleteSessionResponse> {
     const ip = this.getClientIp(req);
 
-    await this.authSessionService.completeSession(
+    const result = await this.authSessionService.completeSession(
       sessionId,
       dto.secret,
       dto.userId,
@@ -195,6 +215,7 @@ export class AuthSessionController {
     return {
       success: true,
       message: 'Session completed successfully',
+      exchangeToken: result.exchangeToken, // Pass to web client for exchange
     };
   }
 
@@ -203,14 +224,18 @@ export class AuthSessionController {
    * Called by web client after session is completed
    * 
    * POST /auth/sessions/:id/exchange
+   * Body: { exchangeToken }
    * Returns: { token, expiresIn }
+   * 
+   * SECURITY: Requires one-time exchangeToken from mobile app, can only be used once
    */
   @Post(':id/exchange')
   @HttpCode(HttpStatus.OK)
   async exchangeForToken(
     @Param('id', ParseUUIDPipe) sessionId: string,
+    @Body() dto: ExchangeTokenDto,
   ): Promise<TokenExchangeResponse> {
-    const token = await this.authSessionService.exchangeForToken(sessionId);
+    const token = await this.authSessionService.exchangeForToken(sessionId, dto.exchangeToken);
 
     return {
       token,

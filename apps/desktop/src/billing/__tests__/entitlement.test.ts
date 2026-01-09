@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import sodium from 'libsodium-wrappers';
+import * as sodium from 'libsodium-wrappers';
 import {
   verifyEntitlementToken,
   createEntitlementToken,

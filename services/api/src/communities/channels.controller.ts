@@ -8,6 +8,7 @@ import {
   Param,
   UseGuards,
   Request,
+  ForbiddenException,
 } from '@nestjs/common';
 import { CommunitiesService, CreateChannelDto } from './communities.service';
 import { ChannelCryptoService } from './channel-crypto.service';
@@ -34,19 +35,39 @@ export class ChannelsController {
   /**
    * Get a channel by ID.
    * GET /channels/:id
+   * 
+   * SECURITY: Only community members can view channel details
    */
   @Get(':id')
-  async getChannel(@Param('id') id: string) {
+  async getChannel(@Request() req: AuthRequest, @Param('id') id: string) {
     const channel = await this.communitiesService.getChannel(id);
+    
+    // SECURITY: Check membership in the community
+    const isMember = await this.communitiesService.isMember(channel.communityId, req.user.id);
+    if (!isMember) {
+      throw new ForbiddenException('You must be a member to view this channel');
+    }
+    
     return { channel };
   }
 
   /**
    * Get all channels for a community.
    * GET /channels/community/:communityId
+   * 
+   * SECURITY: Only community members can list channels
    */
   @Get('community/:communityId')
-  async getCommunityChannels(@Param('communityId') communityId: string) {
+  async getCommunityChannels(
+    @Request() req: AuthRequest,
+    @Param('communityId') communityId: string,
+  ) {
+    // SECURITY: Check membership before listing channels
+    const isMember = await this.communitiesService.isMember(communityId, req.user.id);
+    if (!isMember) {
+      throw new ForbiddenException('You must be a member to view channels');
+    }
+    
     const channels =
       await this.communitiesService.getCommunityChannels(communityId);
     return { channels };

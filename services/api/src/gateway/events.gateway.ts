@@ -275,7 +275,8 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     if (!client.userId) return;
 
     try {
-      await this.messagesService.updateStatus(data.messageId, data.status);
+      // SECURITY: Pass userId for authorization check
+      await this.messagesService.updateStatus(data.messageId, data.status, client.userId);
 
       const message = await this.messagesService.getById(data.messageId);
       this.sendToUser(message.senderId, WSEventType.MESSAGE_ACK, {
@@ -284,6 +285,7 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
       });
     } catch {
       // Silently fail - ack updates are best-effort
+      // Note: This may fail if user doesn't have access to the message
     }
   }
 

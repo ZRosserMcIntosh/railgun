@@ -169,6 +169,8 @@ export class AuthSessionService {
   /**
    * Complete session authentication
    * Called by mobile after scanning QR code
+   * 
+   * SECURITY: Generates a one-time exchange token that must be used to get JWT
    */
   async completeSession(
     sessionId: string,
@@ -176,7 +178,7 @@ export class AuthSessionService {
     userId: string,
     userPublicKey: string,
     completerIp?: string,
-  ): Promise<CompleteSessionResult> {
+  ): Promise<CompleteSessionResult & { exchangeToken: string }> {
     const session = await this.sessionRepo.findOne({
       where: { id: sessionId },
     });
@@ -189,11 +191,17 @@ export class AuthSessionService {
       throw new BadRequestException('Session expired or already completed');
     }
 
-    // Verify secret (constant-time comparison would be better)
-    if (session.secret !== secret) {
+    // Verify secret using constant-time comparison to prevent timing attacks
+    const secretBuffer = Buffer.from(session.secret);
+    const providedBuffer = Buffer.from(secret);
+    if (secretBuffer.length !== providedBuffer.length || 
+        !require('crypto').timingSafeEqual(secretBuffer, providedBuffer)) {
       this.logger.warn(`Invalid secret for session: ${sessionId}`);
       throw new ForbiddenException('Invalid session secret');
     }
+
+    // Generate one-time exchange token
+    const exchangeToken = AuthSession.generateSecret();
 
     // Update session
     session.status = SessionStatus.COMPLETED;
@@ -201,6 +209,8 @@ export class AuthSessionService {
     session.userPublicKey = userPublicKey;
     session.completerIp = completerIp ?? null;
     session.completedAt = new Date();
+    session.exchangeToken = exchangeToken;
+    session.isExchanged = false;
 
     // Clear secret after use (one-time)
     session.secret = '';
@@ -208,6 +218,7 @@ export class AuthSessionService {
     await this.sessionRepo.save(session);
 
     // Emit event for WebSocket subscribers
+    // Note: Don't emit the exchangeToken over WS - return it to completer only
     this.eventEmitter.emit('auth.session.completed', {
       sessionId,
       userId,
@@ -219,6 +230,7 @@ export class AuthSessionService {
     return {
       success: true,
       sessionId,
+      exchangeToken, // Return to mobile app to give to web client
     };
   }
 
@@ -246,8 +258,10 @@ export class AuthSessionService {
   /**
    * Exchange completed session for JWT token
    * Called by web client after session is completed
+   * 
+   * SECURITY: Requires one-time exchange token and can only be called once per session
    */
-  async exchangeForToken(sessionId: string): Promise<string> {
+  async exchangeForToken(sessionId: string, exchangeToken: string): Promise<string> {
     const session = await this.sessionRepo.findOne({
       where: { id: sessionId },
     });
@@ -260,9 +274,33 @@ export class AuthSessionService {
       throw new BadRequestException('Session not completed');
     }
 
+    // SECURITY: Prevent replay attacks - only allow one exchange per session
+    if (session.isExchanged) {
+      this.logger.warn(`Attempted re-exchange of session: ${sessionId}`);
+      throw new ForbiddenException('Session already exchanged');
+    }
+
+    // SECURITY: Verify exchange token using constant-time comparison
+    if (!session.exchangeToken) {
+      throw new BadRequestException('Session missing exchange token');
+    }
+    
+    const tokenBuffer = Buffer.from(session.exchangeToken);
+    const providedBuffer = Buffer.from(exchangeToken);
+    if (tokenBuffer.length !== providedBuffer.length ||
+        !require('crypto').timingSafeEqual(tokenBuffer, providedBuffer)) {
+      this.logger.warn(`Invalid exchange token for session: ${sessionId}`);
+      throw new ForbiddenException('Invalid exchange token');
+    }
+
     if (!session.userId || !session.userPublicKey) {
       throw new BadRequestException('Session missing user data');
     }
+
+    // Mark session as exchanged (one-time use)
+    session.isExchanged = true;
+    session.exchangeToken = null; // Clear the token
+    await this.sessionRepo.save(session);
 
     // Generate JWT
     const payload: Partial<AuthTokenPayload> = {

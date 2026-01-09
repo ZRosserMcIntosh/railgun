@@ -102,6 +102,19 @@ export class AuthSession {
   completerIp!: string | null;
 
   /**
+   * One-time exchange token (set on completion, consumed on exchange)
+   * This prevents replay attacks - exchange can only happen once
+   */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  exchangeToken!: string | null;
+
+  /**
+   * Whether the session has been exchanged for a JWT
+   */
+  @Column({ type: 'boolean', default: false })
+  isExchanged!: boolean;
+
+  /**
    * When the session expires
    */
   @Column({ type: 'timestamp' })

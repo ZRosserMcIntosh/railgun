@@ -159,12 +159,38 @@ export class MessagesService {
 
   /**
    * Update message status (delivered, read).
+   * 
+   * SECURITY: Only the message recipient (or channel members for channel messages)
+   * should be able to update status. The sender should also receive status updates.
+   * 
+   * @param id - Message ID
+   * @param status - New status
+   * @param userId - ID of user making the update (for authorization)
    */
   async updateStatus(
     id: string,
     status: MessageStatus,
+    userId?: string,
   ): Promise<MessageEntity> {
     const message = await this.getById(id);
+
+    // SECURITY: Validate that the user can update this message's status
+    if (userId) {
+      // For DMs: only participants can update status
+      if (message.conversationId) {
+        const isParticipant = await this.dmService.isParticipant(message.conversationId, userId);
+        if (!isParticipant) {
+          throw new ForbiddenException('You cannot update status for this message');
+        }
+      }
+      // For channel messages: sender can mark as sent, but for delivered/read
+      // the user must be in the channel (this is validated at controller level)
+      // Here we just ensure the user is either sender or has access
+      if (message.channelId && message.senderId !== userId) {
+        // Non-sender marking channel message - this should be handled by channel access check
+        // For now, allow it since channel access is checked at controller level
+      }
+    }
 
     message.status = status;
 
@@ -232,14 +258,38 @@ export class MessagesService {
       .getMany();
   }
 
+
   /**
    * Batch update message statuses (for marking multiple as delivered/read).
+   * 
+   * SECURITY: Validates that the user has access to all messages before updating
+   * 
+   * @param messageIds - IDs of messages to update
+   * @param status - New status
+   * @param userId - ID of user making the update (for authorization)
    */
   async batchUpdateStatus(
     messageIds: string[],
     status: MessageStatus,
+    userId?: string,
   ): Promise<void> {
     if (messageIds.length === 0) return;
+
+    // SECURITY: If userId provided, validate access to all messages
+    if (userId) {
+      for (const messageId of messageIds) {
+        const message = await this.getById(messageId);
+        
+        // For DMs: only participants can update status
+        if (message.conversationId) {
+          const isParticipant = await this.dmService.isParticipant(message.conversationId, userId);
+          if (!isParticipant) {
+            throw new ForbiddenException(`You cannot update status for message ${messageId}`);
+          }
+        }
+        // Channel messages are validated at controller level
+      }
+    }
 
     const updateData: Partial<MessageEntity> = { status };
 

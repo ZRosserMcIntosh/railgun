@@ -2,12 +2,19 @@
 # migrate-docs.sh
 # Run this script to migrate from old docs structure to new consolidated docs
 
-set -e
+set -euo pipefail
 
-PROJECT_ROOT="/Users/rossermcintosh/Desktop/Rail Gun"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR"
 OLD_DOCS="$PROJECT_ROOT/docs"
 NEW_DOCS="$PROJECT_ROOT/docs-new"
 ARCHIVE="$PROJECT_ROOT/docs-archive"
+
+if [ ! -d "$NEW_DOCS" ]; then
+    echo "❌ Expected docs-new/ at: $NEW_DOCS"
+    echo "Aborting migration to avoid deleting docs/ without a replacement."
+    exit 1
+fi
 
 echo "📦 Creating archive of old docs..."
 mkdir -p "$ARCHIVE"

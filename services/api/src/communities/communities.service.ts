@@ -290,6 +290,18 @@ export class CommunitiesService {
   }
 
   /**
+   * Check if a user is a member of a community.
+   * Returns true if member, false otherwise.
+   */
+  async isMember(communityId: string, userId: string): Promise<boolean> {
+    const member = await this.memberRepository.findOne({
+      where: { communityId, userId },
+      select: ['id'], // Only need to check existence
+    });
+    return !!member;
+  }
+
+  /**
    * Get all members of a community.
    */
   async getMembers(communityId: string): Promise<MemberEntity[]> {

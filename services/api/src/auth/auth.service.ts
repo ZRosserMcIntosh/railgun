@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
@@ -41,6 +41,7 @@ export interface AuthResponse {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly recoveryCodeSecret: string;
 
   constructor(
@@ -341,21 +342,23 @@ export class AuthService {
    * 
    * SECURITY: Always returns success to prevent email enumeration
    * If email exists, sends reset link. If not, silently succeeds.
+   * SECURITY: Tokens are stored hashed, never logged in plaintext
    */
   async requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
     const user = await this.usersService.findByEmail(email);
     
     if (user) {
       // Generate reset token (valid for 1 hour)
-      const resetToken = await this.generatePasswordResetToken(user.id);
+      const { plainToken, hashedToken } = await this.generatePasswordResetToken(user.id);
       
       // TODO: Send email with reset link
       // In production, integrate with email service (SendGrid, SES, etc.)
-      // The link would be: https://app.railgun.xyz/reset-password?token=${resetToken}
-      console.log(`[Password Reset] Token generated for user ${user.id}: ${resetToken.slice(0, 8)}...`);
+      // The link would be: https://app.railgun.xyz/reset-password?token=${plainToken}
+      // SECURITY: Never log the actual token - only log that one was generated
+      this.logger.log(`Password reset token generated for user ${user.id.substring(0, 8)}...`);
       
-      // For now, store token for verification
-      await this.usersService.setPasswordResetToken(user.id, resetToken);
+      // SECURITY: Store hashed token, not plaintext
+      await this.usersService.setPasswordResetToken(user.id, hashedToken);
     }
     
     // Always return success to prevent email enumeration
@@ -367,13 +370,18 @@ export class AuthService {
 
   /**
    * Complete password reset with token from email
+   * 
+   * SECURITY: Compares hashed version of provided token
    */
   async completePasswordReset(
     token: string,
     newPassword: string
   ): Promise<{ success: boolean; message: string; recoveryCodes?: string[] }> {
+    // SECURITY: Hash the provided token before lookup
+    const hashedToken = await this.hashPasswordResetToken(token);
+    
     // Verify token and get user
-    const user = await this.usersService.findByPasswordResetToken(token);
+    const user = await this.usersService.findByPasswordResetToken(hashedToken);
     
     if (!user) {
       throw new BadRequestException('Invalid or expired reset token');
@@ -401,8 +409,12 @@ export class AuthService {
 
   /**
    * Generate a secure password reset token
+   * 
+   * SECURITY: Returns both plain and hashed versions:
+   * - plainToken: sent to user via email
+   * - hashedToken: stored in database
    */
-  private async generatePasswordResetToken(userId: string): Promise<string> {
+  private async generatePasswordResetToken(userId: string): Promise<{ plainToken: string; hashedToken: string }> {
     const payload = {
       sub: userId,
       purpose: 'password-reset',
@@ -410,7 +422,23 @@ export class AuthService {
     };
     
     // Token expires in 1 hour
-    return this.jwtService.signAsync(payload, { expiresIn: '1h' });
+    const plainToken = await this.jwtService.signAsync(payload, { expiresIn: '1h' });
+    
+    // SECURITY: Hash the token before storage using SHA-256
+    const hashedToken = await this.hashPasswordResetToken(plainToken);
+    
+    return { plainToken, hashedToken };
+  }
+
+  /**
+   * Hash a password reset token for secure storage
+   * 
+   * SECURITY: Uses SHA-256 to hash tokens before storage
+   * This prevents token theft if database is compromised
+   */
+  private async hashPasswordResetToken(token: string): Promise<string> {
+    const crypto = await import('crypto');
+    return crypto.createHash('sha256').update(token).digest('hex');
   }
 
   private async generateTokens(payload: TokenPayload): Promise<AuthTokens> {
