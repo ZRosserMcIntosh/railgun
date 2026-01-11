@@ -103,20 +103,23 @@ export class CryptoService {
       { isActive: false },
     );
 
-    await this.signedPreKeyRepository.save({
-      deviceId: device.id,
-      keyId: dto.signedPreKey.keyId,
-      publicKey: dto.signedPreKey.publicKey,
-      signature: dto.signedPreKey.signature,
-      expiresAt: signedPreKeyExpiry,
-      isActive: true,
-    });
+    // Upsert signed pre-key (handles re-registration with same keyId)
+    await this.signedPreKeyRepository.upsert(
+      {
+        deviceId: device.id,
+        keyId: dto.signedPreKey.keyId,
+        publicKey: dto.signedPreKey.publicKey,
+        signature: dto.signedPreKey.signature,
+        expiresAt: signedPreKeyExpiry,
+        isActive: true,
+      },
+      ['deviceId', 'keyId'],
+    );
 
-    // Delete existing unused pre-keys for this device before inserting new ones
-    // This handles the case where a device re-registers with new keys
+    // Delete ALL existing pre-keys for this device before inserting new ones
+    // When re-registering, old keys are invalid anyway
     await this.preKeyRepository.delete({
       deviceId: device.id,
-      isUsed: false,
     });
 
     // Store one-time pre-keys
