@@ -11,6 +11,7 @@
  */
 
 import sodium from 'libsodium-wrappers';
+
 import { getCrypto } from '../crypto';
 
 // ============================================================================

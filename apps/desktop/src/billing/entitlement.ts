@@ -11,6 +11,7 @@
  */
 
 import sodium from 'libsodium-wrappers';
+
 import {
   Capability,
   Plan,

@@ -2,8 +2,10 @@ import { Module, Global, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { createClient, RedisClientType } from 'redis';
 import { RedisService } from './redis.service';
+import { REDIS_CLIENT } from './redis.constants';
 
-export const REDIS_CLIENT = 'REDIS_CLIENT';
+// Re-export for backwards compatibility
+export { REDIS_CLIENT } from './redis.constants';
 
 /**
  * Mock Redis client for development when Redis is unavailable

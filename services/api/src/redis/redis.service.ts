@@ -3,7 +3,7 @@
  */
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { RedisClientType } from 'redis';
-import { REDIS_CLIENT } from './redis.module';
+import { REDIS_CLIENT } from './redis.constants';
 
 /**
  * RedisService provides a typed wrapper around the Redis client

@@ -1,4 +1,5 @@
 import { DataSource, DataSourceOptions } from 'typeorm';
+import * as migrations from './migrations';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 require('dotenv').config();
 
@@ -22,10 +23,8 @@ const databaseUrl = process.env.DATABASE_URL;
 const baseConfig: Partial<DataSourceOptions> = {
   type: 'postgres',
   entities: [__dirname + '/**/*.entity{.ts,.js}'],
-  migrations: [
-    __dirname + '/migrations/**/*{.ts,.js}',
-    __dirname + '/billing/migrations/**/*{.ts,.js}',
-  ],
+  // Use explicit migrations from index to avoid duplicates
+  migrations: Object.values(migrations),
   migrationsTableName: 'typeorm_migrations',
   logging: isProduction ? ['error', 'migration'] : ['error', 'warn', 'migration'],
 };
@@ -51,7 +50,7 @@ const config: DataSourceOptions = databaseUrl
       database: process.env.DATABASE_NAME || 'railgun',
     } as DataSourceOptions;
 
-// Export DataSource for CLI
-export const AppDataSource = new DataSource(config);
+// Export DataSource for CLI (single export required by TypeORM CLI)
+const AppDataSource = new DataSource(config);
 
 export default AppDataSource;

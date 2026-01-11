@@ -64,6 +64,7 @@
     "@types/passport-jwt": "^4.0.0",
     "@typescript-eslint/eslint-plugin": "^6.13.0",
     "@typescript-eslint/parser": "^6.13.0",
+    "ts-node": "^10.9.2",
     "vitest": "^1.0.0"
   }
 }

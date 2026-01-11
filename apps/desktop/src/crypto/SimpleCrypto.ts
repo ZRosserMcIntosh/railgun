@@ -33,6 +33,7 @@
  */
 
 import sodium from 'libsodium-wrappers';
+
 import {
   computeSafetyNumberFromBase64,
   createIdentityStore,

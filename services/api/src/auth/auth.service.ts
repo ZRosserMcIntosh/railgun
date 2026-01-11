@@ -349,7 +349,7 @@ export class AuthService {
     
     if (user) {
       // Generate reset token (valid for 1 hour)
-      const { plainToken, hashedToken } = await this.generatePasswordResetToken(user.id);
+      const { hashedToken } = await this.generatePasswordResetToken(user.id);
       
       // TODO: Send email with reset link
       // In production, integrate with email service (SendGrid, SES, etc.)

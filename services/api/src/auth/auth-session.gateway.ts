@@ -10,7 +10,6 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { ConfigService } from '@nestjs/config';
 import { AuthSessionService } from './auth-session.service';
 
 /**
@@ -50,7 +49,8 @@ import { AuthSessionService } from './auth-session.service';
       }
       
       // Check against allowed origins from config
-      const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '').split(',').filter(Boolean);
+      // Use CORS_ORIGINS for consistency with main.ts and other gateways
+      const allowedOrigins = (process.env.CORS_ORIGINS || process.env.CORS_ALLOWED_ORIGINS || '').split(',').filter(Boolean);
       if (allowedOrigins.length === 0 && process.env.NODE_ENV !== 'production') {
         // Allow all in dev if no origins configured
         callback(null, true);
@@ -84,7 +84,6 @@ export class AuthSessionGateway implements OnGatewayConnection, OnGatewayDisconn
 
   constructor(
     private readonly authSessionService: AuthSessionService,
-    private readonly configService: ConfigService,
   ) {}
 
   /**
