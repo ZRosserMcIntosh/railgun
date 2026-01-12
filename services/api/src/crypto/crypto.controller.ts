@@ -28,7 +28,9 @@ export class CryptoController {
    */
   @Post('register')
   async registerKeys(@Request() req: AuthRequest, @Body() dto: RegisterKeysDto) {
+    console.log(`[CryptoController] Registering keys for user ${req.user.id}, deviceId: ${dto.deviceId}`);
     const device = await this.cryptoService.registerDevice(req.user.id, dto);
+    console.log(`[CryptoController] Keys registered successfully for device ${device.deviceId}`);
     return {
       deviceId: device.deviceId,
       message: 'Keys registered successfully',
