@@ -15,6 +15,34 @@ import { MemberEntity } from './member.entity';
 import { RoleEntity } from './role.entity';
 
 /**
+ * How users can join the group.
+ */
+export enum JoinPolicy {
+  OPEN = 'OPEN',
+  APPROVAL_REQUIRED = 'APPROVAL_REQUIRED',
+  INVITE_ONLY = 'INVITE_ONLY',
+  PAID = 'PAID',
+}
+
+/**
+ * Who can send messages in the group.
+ */
+export enum PostPolicy {
+  OPEN = 'OPEN',
+  OWNER_ONLY = 'OWNER_ONLY',
+  ROLE_BASED = 'ROLE_BASED',
+}
+
+/**
+ * Type of group structure.
+ */
+export enum GroupType {
+  FULL = 'FULL',
+  BROADCAST = 'BROADCAST',
+  PAID = 'PAID',
+}
+
+/**
  * Community entity (similar to Discord "server").
  * A community contains channels and members.
  */
@@ -56,6 +84,43 @@ export class CommunityEntity {
   /** Whether the community is public (joinable without invite) */
   @Column({ type: 'boolean', default: false })
   isPublic!: boolean;
+
+  // ==================== GROUP POLICY FIELDS ====================
+
+  /** Unique @handle for public groups (e.g., @railgun-community) */
+  @Column({ type: 'varchar', length: 32, unique: true, nullable: true })
+  @Index()
+  handle?: string;
+
+  /** How users can join this group */
+  @Column({
+    type: 'enum',
+    enum: JoinPolicy,
+    default: JoinPolicy.INVITE_ONLY,
+  })
+  joinPolicy!: JoinPolicy;
+
+  /** Who can send messages in this group */
+  @Column({
+    type: 'enum',
+    enum: PostPolicy,
+    default: PostPolicy.OPEN,
+  })
+  postPolicy!: PostPolicy;
+
+  /** Type of group (full chat, broadcast, or paid) */
+  @Column({
+    type: 'enum',
+    enum: GroupType,
+    default: GroupType.FULL,
+  })
+  groupType!: GroupType;
+
+  /** Whether this group appears in discovery/search */
+  @Column({ type: 'boolean', default: false })
+  isDiscoverable!: boolean;
+
+  // ==================== END GROUP POLICY FIELDS ====================
 
   /** Maximum number of members (0 = unlimited) */
   @Column({ type: 'int', default: 0 })

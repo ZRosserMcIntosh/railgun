@@ -33,6 +33,12 @@ export enum Capability {
   /** Screen sharing in calls (future feature) */
   SCREEN_SHARE = 'SCREEN_SHARE',
   
+  /** Extended message length (2000 chars vs 500) */
+  EXTENDED_MESSAGE = 'EXTENDED_MESSAGE',
+  
+  /** HD video uploads (higher resolution/bitrate) */
+  HD_VIDEO = 'HD_VIDEO',
+  
   /** Priority access to relay network (future feature) */
   PRIORITY_RELAY = 'PRIORITY_RELAY',
 }
@@ -63,17 +69,33 @@ export enum BillingPeriod {
  */
 export const FREE_TIER_LIMITS = {
   /**
+   * Maximum message length for free users.
+   * Messages longer than this require Pro.
+   */
+  MAX_MESSAGE_LENGTH: 500, // characters
+  
+  /**
    * Maximum image dimension (width or height) for free users.
    * Images larger than this require Pro for sending.
    * Recommendation: Offer to downscale images for free users.
    */
-  MAX_IMAGE_DIMENSION: 1280, // pixels
+  MAX_IMAGE_DIMENSION: 1280, // pixels (SD)
+  
+  /**
+   * Maximum image file size for free users.
+   */
+  MAX_IMAGE_BYTES: 5 * 1024 * 1024, // 5 MB
   
   /**
    * Maximum video duration for free users.
    * Videos longer than this require Pro for sending.
    */
-  MAX_VIDEO_SECONDS: 60,
+  MAX_VIDEO_SECONDS: 60, // 1 minute
+  
+  /**
+   * Maximum video file size for free users.
+   */
+  MAX_VIDEO_BYTES: 50 * 1024 * 1024, // 50 MB
   
   /**
    * Maximum file size for free users.
@@ -104,6 +126,65 @@ export const FREE_TIER_LIMITS = {
    * Maximum audio bitrate for free users (kbps).
    */
   MAX_AUDIO_BITRATE: 32, // kbps
+} as const;
+
+// ============================================================================
+// PRO TIER LIMITS
+// ============================================================================
+
+/**
+ * Pro tier limits - enhanced capabilities for subscribers.
+ */
+export const PRO_TIER_LIMITS = {
+  /**
+   * Maximum message length for Pro users.
+   */
+  MAX_MESSAGE_LENGTH: 2000, // characters
+  
+  /**
+   * Maximum image dimension for Pro users.
+   */
+  MAX_IMAGE_DIMENSION: 4096, // pixels (HD)
+  
+  /**
+   * Maximum image file size for Pro users.
+   */
+  MAX_IMAGE_BYTES: 25 * 1024 * 1024, // 25 MB
+  
+  /**
+   * Maximum video duration for Pro users.
+   */
+  MAX_VIDEO_SECONDS: 300, // 5 minutes
+  
+  /**
+   * Maximum video file size for Pro users.
+   */
+  MAX_VIDEO_BYTES: 500 * 1024 * 1024, // 500 MB
+  
+  /**
+   * Maximum file size for Pro users.
+   */
+  MAX_FILE_BYTES: 500 * 1024 * 1024, // 500 MB
+  
+  /**
+   * Video calling enabled for Pro.
+   */
+  VIDEO_CALLING_ENABLED: true,
+  
+  /**
+   * Screen sharing enabled for Pro.
+   */
+  SCREEN_SHARE_ENABLED: true,
+  
+  /**
+   * Maximum participants in voice channel for Pro.
+   */
+  MAX_VOICE_PARTICIPANTS: 25,
+  
+  /**
+   * Maximum audio bitrate for Pro users (kbps).
+   */
+  MAX_AUDIO_BITRATE: 128, // kbps
 } as const;
 
 // ============================================================================
@@ -145,6 +226,8 @@ export const PLAN_CAPABILITIES: Record<Plan, Set<Capability>> = {
     Capability.VIDEO_CALLING,
     Capability.LONG_VIDEO,
     Capability.SCREEN_SHARE,
+    Capability.EXTENDED_MESSAGE,
+    Capability.HD_VIDEO,
     // Future capabilities can be added here
     // Capability.PRIORITY_RELAY,
   ]),

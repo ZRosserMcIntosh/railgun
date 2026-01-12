@@ -13,6 +13,7 @@ import { RedisModule } from './redis/redis.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { BillingModule } from './billing/billing.module';
 import { VoiceModule } from './voice/voice.module';
+import { GroupsModule } from './groups/groups.module';
 
 @Module({
   imports: [
@@ -89,6 +90,7 @@ import { VoiceModule } from './voice/voice.module';
     AnalyticsModule,
     BillingModule,
     VoiceModule,
+    GroupsModule,
   ],
 })
 export class AppModule {}

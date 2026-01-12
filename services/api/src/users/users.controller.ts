@@ -4,7 +4,15 @@ import {
   Param,
   Query,
   UseGuards,
-  NotFoundException,
+  Not    if (!searchQuery || searchQuery.length < 2) {
+      throw new BadRequestException('Query must be at least 2 characters');
+    }
+
+    if (searchQuery.length > 32) {
+      throw new BadRequestException('Query too long');
+    }
+
+    const users = await this.usersService.searchByUsername(searchQuery, 10);ption,
   BadRequestException,
   Request,
 } from '@nestjs/common';
@@ -52,16 +60,19 @@ export class UsersController {
 
   /**
    * Search users by username prefix.
-   * GET /users/search?query=<string>
+   * GET /users/search?q=<string> or ?query=<string>
    * 
    * Rate limited to prevent enumeration attacks.
    */
   @Get('search')
   @RateLimit({ limit: 10, windowMs: 60000 }) // 10 requests per minute
   async searchUsers(
-    @Query('query') query: string,
+    @Query('q') q?: string,
+    @Query('query') query?: string,
   ): Promise<{ users: UserProfile[] }> {
-    if (!query || query.length < 2) {
+    const searchQuery = q || query; // Accept both 'q' and 'query' parameters
+    
+    if (!searchQuery || searchQuery.length < 2) {
       throw new BadRequestException('Query must be at least 2 characters');
     }
 

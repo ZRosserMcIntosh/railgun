@@ -88,10 +88,11 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1');
 
   const port = configService.get<number>('PORT', 3001);
-  await app.listen(port);
+  const host = isProduction ? '0.0.0.0' : '0.0.0.0'; // Listen on all interfaces for both dev and prod
+  await app.listen(port, host);
 
   // Use stderr for logging to avoid interfering with test output
-  process.stderr.write(`🚀 Rail Gun API running on http://localhost:${port}\n`);
+  process.stderr.write(`🚀 Rail Gun API running on http://${host}:${port}\n`);
   if (!isProduction) {
     process.stderr.write(`   CORS origins: ${corsOrigins.join(', ')}\n`);
   }

@@ -87,6 +87,11 @@ export enum Permission {
   SEND_MESSAGES = 'SEND_MESSAGES',
   MANAGE_MESSAGES = 'MANAGE_MESSAGES',
 
+  // Group-specific permissions (for broadcast/controlled groups)
+  POST_MESSAGES = 'POST_MESSAGES',       // Can post in broadcast groups
+  APPROVE_MEMBERS = 'APPROVE_MEMBERS',   // Can approve join requests
+  MANAGE_PAYMENTS = 'MANAGE_PAYMENTS',   // Can view payment info for paid groups
+
   // Voice channel permissions
   CONNECT_VOICE = 'CONNECT_VOICE',
   SPEAK_VOICE = 'SPEAK_VOICE',
