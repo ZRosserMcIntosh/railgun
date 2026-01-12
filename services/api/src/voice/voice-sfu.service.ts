@@ -1,9 +1,8 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-// Stub mediasoup types - native module requires build tools
-// Install mediasoup when deploying SFU: pnpm add mediasoup
-import * as mediasoup from './mediasoup-stub';
-import type * as mediasoupTypes from './mediasoup-stub';
+// Use real mediasoup module (native build)
+import * as mediasoup from 'mediasoup';
+import type { types as mediasoupTypes } from 'mediasoup';
 
 import { VoiceRoomService } from './voice-room.service';
 import {
@@ -24,8 +23,8 @@ const MEDIASOUP_CONFIG = {
   worker: {
     rtcMinPort: 40000,
     rtcMaxPort: 49999,
-    logLevel: 'warn' as mediasoupTypes.WorkerLogLevel,
-    logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp'] as mediasoupTypes.WorkerLogTag[],
+    logLevel: 'warn' as mediasoup.types.WorkerLogLevel,
+    logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp'] as mediasoup.types.WorkerLogTag[],
   },
   router: {
     mediaCodecs: [
@@ -70,7 +69,7 @@ const MEDIASOUP_CONFIG = {
           'x-google-start-bitrate': 1000,
         },
       },
-    ] as mediasoupTypes.RtpCodecCapability[],
+    ] as unknown as mediasoup.types.RtpCodecCapability[],
   },
   webRtcTransport: {
     listenIps: [
