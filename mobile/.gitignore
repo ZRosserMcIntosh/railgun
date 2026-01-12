@@ -1,0 +1,26 @@
+# Build directories
+.build/
+build/
+DerivedData/
+
+# IDE
+.idea/
+*.xcworkspace
+*.xcuserdata
+.DS_Store
+
+# Gradle
+.gradle/
+local.properties
+
+# Android build
+app/build/
+*/build/
+
+# Swift Package Manager
+.swiftpm/
+Package.resolved
+
+# Temporary files
+*.log
+*.tmp
