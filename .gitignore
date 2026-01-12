@@ -63,3 +63,4 @@ Thumbs.db
 tfplan
 **/.terraform/
 **/terraform.tfstate*
+infra/terraform/terraform.tfvars
