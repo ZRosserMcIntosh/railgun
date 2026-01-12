@@ -111,28 +111,117 @@ public actor NodeModeManager {
             }
         }
         
-        // Initialize transports
-        transportManager = TransportManager()
+        // Initialize transport fallback manager with all transports
+        let fallbackManager = TransportFallbackManager()
         
-        // Register BLE transport
+        // Configure fallback policy
+        var policy = FallbackPolicy()
+        policy.autoFallback = true
+        policy.preferConnected = true
+        policy.enabledTransports = [.lan, .multipeer, .ble]
+        await fallbackManager.setPolicy(policy)
+        
+        // Register all available transports
+        let lanTransport = LANTransport()
+        await fallbackManager.registerTransport(lanTransport)
+        
+        let multipeerTransport = MultipeerTransport()
+        await fallbackManager.registerTransport(multipeerTransport)
+        
         let bleTransport = BLETransport()
-        await transportManager?.register(bleTransport)
+        await fallbackManager.registerTransport(bleTransport)
         
-        // Set node identity on transports
+        // Set node identity
         if let nodeId = config.nodeId {
-            await transportManager?.setNodeId(nodeId)
+            await fallbackManager.setNodeId(nodeId)
         }
+        if let displayName = config.displayName {
+            await fallbackManager.setDisplayName(displayName)
+        }
+        
+        // Store as transport manager (legacy compatibility)
+        transportManager = TransportManager()
+        await transportManager?.register(bleTransport)
+        await transportManager?.register(multipeerTransport)
+        await transportManager?.register(lanTransport)
         
         // Subscribe to transport events
         await subscribeToTransportEvents()
+        await subscribeToFallbackEvents(fallbackManager)
         
-        // Start transports
-        await transportManager?.startAll()
+        // Start all transports via fallback manager
+        await fallbackManager.startAll()
         
         // Start background tasks
         startBackgroundTasks()
         
         state = .running
+    }
+    
+    /// Subscribe to fallback manager events
+    private func subscribeToFallbackEvents(_ manager: TransportFallbackManager) async {
+        manager.events.sink { [weak self] event in
+            Task { [weak self] in
+                await self?.handleFallbackEvent(event)
+            }
+        }.store(in: &cancellables)
+    }
+    
+    private func handleFallbackEvent(_ event: FallbackEvent) {
+        switch event {
+        case .peerConnected(let connection):
+            print("[NodeMode] Peer connected: \(connection.id) via \(connection.bestTransport?.rawValue ?? "unknown")")
+            
+        case .peerDisconnected(let nodeId):
+            print("[NodeMode] Peer disconnected: \(nodeId)")
+            
+        case .fallbackTriggered(let from, let to, let peer):
+            print("[NodeMode] Fallback: \(from) -> \(to) for peer \(peer)")
+            
+        case .messageReceived(let data, let nodeId, let transport):
+            print("[NodeMode] Message received from \(nodeId) via \(transport), size: \(data.count)")
+            // Process incoming bundle data
+            Task {
+                await self.processIncomingBundle(data)
+            }
+            
+        case .networkStatusChanged(let status):
+            print("[NodeMode] Network: WiFi=\(status.hasWiFi), Internet=\(status.hasInternet)")
+            
+        default:
+            break
+        }
+    }
+    
+    /// Process incoming bundle data
+    private func processIncomingBundle(_ data: Data) async {
+        // Attempt to decode as a bundle
+        guard let bundle = try? Bundle.deserialize(from: data) else {
+            print("[NodeMode] Failed to deserialize bundle")
+            return
+        }
+        
+        // Check bloom filter for duplicates
+        if bloomFilter?.mightContain(bundle.id) == true {
+            print("[NodeMode] Duplicate bundle ignored: \(bundle.id)")
+            return
+        }
+        
+        // Add to bloom filter
+        bloomFilter?.add(bundle.id)
+        
+        // Store bundle in database
+        do {
+            try await database?.insertBundle(bundle)
+        } catch {
+            print("[NodeMode] Failed to store bundle: \(error)")
+        }
+        
+        // Emit event
+        eventsSubject.send(.bundleReceived(bundle))
+        
+        // Update stats
+        stats.bundlesReceived += 1
     }
     
     /// Stop Node Mode

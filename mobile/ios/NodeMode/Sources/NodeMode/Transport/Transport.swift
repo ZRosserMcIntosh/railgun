@@ -292,21 +292,35 @@ public actor TransportManager {
 // MARK: - Transport Error
 
 public enum TransportError: Error, LocalizedError {
+    case alreadyRunning
     case transportNotRegistered
+    case peerNotFound
+    case peerNotConnected
     case notConnected
+    case dataTooLarge
     case connectionFailed(String)
     case sendFailed(String)
     case unauthorized
     case bluetoothUnavailable
     case wifiUnavailable
     case timeout
+    case noTransportsAvailable
+    case allTransportsFailed
     
     public var errorDescription: String? {
         switch self {
+        case .alreadyRunning:
+            return "Transport is already running"
         case .transportNotRegistered:
             return "Transport not registered"
+        case .peerNotFound:
+            return "Peer not found"
+        case .peerNotConnected:
+            return "Peer is not connected"
         case .notConnected:
             return "Not connected to peer"
+        case .dataTooLarge:
+            return "Data exceeds maximum size"
         case .connectionFailed(let reason):
             return "Connection failed: \(reason)"
         case .sendFailed(let reason):
@@ -319,6 +333,10 @@ public enum TransportError: Error, LocalizedError {
             return "Wi-Fi is unavailable"
         case .timeout:
             return "Operation timed out"
+        case .noTransportsAvailable:
+            return "No transports available"
+        case .allTransportsFailed:
+            return "All transports failed"
         }
     }
 }

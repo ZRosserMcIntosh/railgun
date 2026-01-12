@@ -37,6 +37,9 @@ public struct NodeModeConfig: Codable {
     /// Node public key / ID (Ed25519, 32 bytes)
     public var nodeId: Data?
     
+    /// Display name for this node
+    public var displayName: String?
+    
     /// Device identifier for registration
     public var deviceId: UInt32 = 0
     
