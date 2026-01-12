@@ -22,7 +22,7 @@
     }
   },
   "include": ["src/**/*", "electron/**/*", "src/vite-env.d.ts"],
-  "exclude": ["node_modules", "dist", "dist-electron", "release"],
+  "exclude": ["node_modules", "dist", "dist-electron", "release", "src/**/*.test.ts", "src/**/*.test.tsx", "src/lib/__tests__/**"],
   "references": [
     { "path": "../../packages/shared" }
   ]

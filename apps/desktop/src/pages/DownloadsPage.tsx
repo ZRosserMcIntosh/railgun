@@ -176,12 +176,12 @@ export function DownloadsPage() {
   };
 
   return (
-    <div className="flex-1 bg-gray-900 overflow-auto">
+    <div className="flex-1 bg-surface-tertiary overflow-auto">
       <div className="max-w-4xl mx-auto px-6 py-12">
         {/* Back Button */}
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
+          className="flex items-center gap-2 text-text-secondary hover:text-text-primary mb-8 transition-colors"
         >
           <BackIcon className="w-5 h-5" />
           <span>Back</span>
@@ -189,14 +189,14 @@ export function DownloadsPage() {
 
         {/* Header */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-2xl mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-accent rounded-2xl mb-4">
             <DownloadIcon className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-3">
+          <h1 className="text-3xl font-bold text-text-primary mb-3">
             Download Rail Gun
           </h1>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            Get the <strong className="text-indigo-400">Universal Package</strong> to share with anyone - 
+          <p className="text-text-secondary text-lg max-w-2xl mx-auto">
+            Get the <strong className="text-accent-light">Universal Package</strong> to share with anyone - 
             it contains installers for Windows, macOS, and Linux all in one zip file. 
             Share via email, USB, cloud storage, or any method!
           </p>
@@ -208,23 +208,23 @@ export function DownloadsPage() {
             <div
               key={option.id}
               className={`
-                relative bg-gray-800 rounded-xl p-6 border-2 transition-all
+                relative bg-surface-elevated rounded-xl p-6 border-2 transition-all
                 ${option.available 
-                  ? 'border-gray-700 hover:border-indigo-500 cursor-pointer' 
-                  : 'border-gray-800 opacity-50 cursor-not-allowed'}
+                  ? 'border-border hover:border-accent cursor-pointer' 
+                  : 'border-surface-elevated opacity-50 cursor-not-allowed'}
               `}
               onClick={() => handleDownload(option)}
             >
               {/* Coming Soon Badge */}
               {!option.available && (
-                <div className="absolute top-3 right-3 bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded">
+                <div className="absolute top-3 right-3 bg-surface-hover text-text-secondary text-xs px-2 py-1 rounded">
                   Coming Soon
                 </div>
               )}
 
               {/* Downloaded Badge */}
               {downloaded.has(option.id) && (
-                <div className="absolute top-3 right-3 bg-green-600 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                <div className="absolute top-3 right-3 bg-status-online text-white text-xs px-2 py-1 rounded flex items-center gap-1">
                   <CheckCircleIcon className="w-3 h-3" />
                   Downloaded
                 </div>
@@ -233,21 +233,21 @@ export function DownloadsPage() {
               <div className="flex items-start gap-4">
                 <div className={`
                   p-3 rounded-lg
-                  ${option.available ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400'}
+                  ${option.available ? 'bg-accent text-white' : 'bg-surface-hover text-text-muted'}
                 `}>
                   {option.icon}
                 </div>
                 
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-white mb-1">
+                  <h3 className="text-lg font-semibold text-text-primary mb-1">
                     {option.name}
                   </h3>
-                  <p className="text-sm text-gray-400 mb-3">
+                  <p className="text-sm text-text-secondary mb-3">
                     {option.platform}
                   </p>
                   
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-text-muted">
                       {option.filename} • {option.size}
                     </span>
                     
@@ -257,8 +257,8 @@ export function DownloadsPage() {
                         className={`
                           flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
                           ${downloading === option.id
-                            ? 'bg-gray-700 text-gray-400'
-                            : 'bg-indigo-600 hover:bg-indigo-700 text-white'}
+                            ? 'bg-surface-hover text-text-muted'
+                            : 'bg-accent hover:bg-accent-hover text-white'}
                           transition-colors
                         `}
                       >
@@ -283,15 +283,15 @@ export function DownloadsPage() {
         </div>
 
         {/* Instructions */}
-        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-          <h2 className="text-lg font-semibold text-white mb-4">
+        <div className="bg-surface-elevated rounded-xl p-6 border border-border">
+          <h2 className="text-lg font-semibold text-text-primary mb-4">
             Installation Instructions
           </h2>
           
-          <div className="space-y-4 text-gray-300">
+          <div className="space-y-4 text-text-secondary">
             <div>
-              <h3 className="font-medium text-white mb-1">Windows</h3>
-              <ol className="list-decimal list-inside text-sm space-y-1 text-gray-400">
+              <h3 className="font-medium text-text-primary mb-1">Windows</h3>
+              <ol className="list-decimal list-inside text-sm space-y-1 text-text-secondary">
                 <li>Download the .zip file</li>
                 <li>Extract the zip to get the .exe installer</li>
                 <li>Run the installer (you may need to click "More info" → "Run anyway" if Windows SmartScreen appears)</li>
@@ -300,8 +300,8 @@ export function DownloadsPage() {
             </div>
             
             <div>
-              <h3 className="font-medium text-white mb-1">macOS</h3>
-              <ol className="list-decimal list-inside text-sm space-y-1 text-gray-400">
+              <h3 className="font-medium text-text-primary mb-1">macOS</h3>
+              <ol className="list-decimal list-inside text-sm space-y-1 text-text-secondary">
                 <li>Download the .zip file for your Mac type (Intel or Apple Silicon)</li>
                 <li>Extract the zip to get the .dmg file</li>
                 <li>Open the .dmg and drag Rail Gun to Applications</li>
@@ -310,12 +310,12 @@ export function DownloadsPage() {
             </div>
             
             <div>
-              <h3 className="font-medium text-white mb-1">Linux</h3>
-              <ol className="list-decimal list-inside text-sm space-y-1 text-gray-400">
+              <h3 className="font-medium text-text-primary mb-1">Linux</h3>
+              <ol className="list-decimal list-inside text-sm space-y-1 text-text-secondary">
                 <li>Download the .zip file</li>
                 <li>Extract to get the .AppImage or .deb file</li>
-                <li>For AppImage: Make it executable with <code className="bg-gray-700 px-1 rounded">chmod +x</code> and run</li>
-                <li>For .deb: Install with <code className="bg-gray-700 px-1 rounded">sudo dpkg -i</code></li>
+                <li>For AppImage: Make it executable with <code className="bg-surface-hover px-1 rounded">chmod +x</code> and run</li>
+                <li>For .deb: Install with <code className="bg-surface-hover px-1 rounded">sudo dpkg -i</code></li>
               </ol>
             </div>
           </div>
@@ -323,10 +323,10 @@ export function DownloadsPage() {
 
         {/* Share Section */}
         <div className="mt-8 text-center">
-          <p className="text-gray-400 mb-2">
+          <p className="text-text-secondary mb-2">
             Share Rail Gun with your friends!
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-text-muted">
             The zip files can be shared via email, USB drives, cloud storage (Dropbox, Google Drive, OneDrive), 
             messaging apps, or any file transfer method.
           </p>

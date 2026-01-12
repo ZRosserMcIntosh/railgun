@@ -107,8 +107,8 @@ export default function SafetyNumber({
             <div className="flex flex-col items-center py-4">
               <div className="w-48 h-48 bg-white rounded-lg p-4 flex items-center justify-center">
                 {/* Placeholder QR code - in production use a QR library */}
-                <div className="w-full h-full border-2 border-dashed border-gray-300 rounded flex items-center justify-center">
-                  <span className="text-gray-400 text-xs text-center px-2">
+                <div className="w-full h-full border-2 border-dashed border-border rounded flex items-center justify-center">
+                  <span className="text-text-muted text-xs text-center px-2">
                     QR Code<br/>
                     (requires qrcode library)
                   </span>

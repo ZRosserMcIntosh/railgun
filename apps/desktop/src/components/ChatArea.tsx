@@ -224,12 +224,12 @@ export default function ChatArea() {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
-      <div className="h-12 border-b border-dark-900 flex items-center px-4 gap-2">
+      <div className="h-12 border-b border-border flex items-center px-4 gap-2">
         {isDmMode ? (
           <>
             {/* DM Header */}
             <div className="relative">
-              <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-white text-sm font-semibold">
+              <div className="w-8 h-8 rounded-full bg-surface-hover flex items-center justify-center text-white text-sm font-semibold">
                 {currentDm?.peerAvatarUrl ? (
                   <img
                     src={currentDm.peerAvatarUrl}
@@ -241,21 +241,21 @@ export default function ChatArea() {
                 )}
               </div>
               <div
-                className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-dark-900 ${
+                className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-surface-primary ${
                   currentDm?.peerPresence === 'ONLINE'
-                    ? 'bg-green-500'
+                    ? 'bg-status-online'
                     : currentDm?.peerPresence === 'AWAY'
-                    ? 'bg-yellow-500'
+                    ? 'bg-status-idle'
                     : currentDm?.peerPresence === 'DND'
-                    ? 'bg-red-500'
-                    : 'bg-gray-500'
+                    ? 'bg-status-dnd'
+                    : 'bg-status-offline'
                 }`}
               />
             </div>
             <h2 className="font-semibold text-text-primary flex items-center gap-2">
               {currentDm?.peerDisplayName || currentDm?.peerUsername || 'Direct Message'}
               {currentDm?.peerId === user?.id && (
-                <span className="text-xs bg-purple-600 text-white px-2 py-0.5 rounded font-normal">
+                <span className="text-xs bg-accent text-white px-2 py-0.5 rounded font-normal">
                   Saved Messages
                 </span>
               )}

@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar */
+/* Custom scrollbar - purple theme */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -13,12 +13,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e1f22;
+  background: #27272a;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #313338;
+  background: #3f3f46;
 }
 
 /* Drag region for custom title bar */
@@ -30,14 +30,14 @@
   -webkit-app-region: no-drag;
 }
 
-/* Selection color */
+/* Selection color - purple */
 ::selection {
-  background-color: rgba(88, 101, 242, 0.3);
+  background-color: rgba(139, 92, 246, 0.3);
 }
 
-/* Focus styles */
+/* Focus styles - purple */
 *:focus-visible {
-  outline: 2px solid #5865f2;
+  outline: 2px solid #8b5cf6;
   outline-offset: 2px;
 }
 
@@ -50,10 +50,12 @@
 
 /* Base body styles */
 body {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', 'Roboto', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
+  background-color: #0f0f10;
+  color: #ffffff;
 }
 
 /* Prevent text selection in UI elements */
@@ -91,4 +93,27 @@ body {
 
 .animate-pulse {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Purple glow effects */
+.glow-purple {
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+}
+
+.glow-purple-sm {
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.2);
+}
+
+/* Purple gradient background */
+.bg-purple-gradient {
+  background: linear-gradient(135deg, #0f0f10 0%, #1a1a2e 50%, #0f0f10 100%);
+}
+
+/* Button styles */
+.btn-primary {
+  @apply bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg transition-all duration-200;
+}
+
+.btn-primary:hover {
+  @apply shadow-glow;
 }

@@ -118,7 +118,7 @@ export default function RecoveryCodesModal({
             type="checkbox"
             checked={hasConfirmed}
             onChange={(e) => setHasConfirmed(e.target.checked)}
-            className="mt-1 w-4 h-4 rounded border-gray-600 bg-surface-tertiary text-primary-500 focus:ring-primary-500"
+            className="mt-1 w-4 h-4 rounded border-border bg-surface-tertiary text-primary-500 focus:ring-primary-500"
           />
           <span className="text-text-secondary text-sm">
             I have saved these recovery codes in a secure location. I understand that without these codes, I cannot recover my account if I forget my password.

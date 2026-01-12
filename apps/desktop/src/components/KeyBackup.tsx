@@ -292,10 +292,10 @@ function PassphraseStrength({ passphrase }: { passphrase: string }) {
     if (/[0-9]/.test(pass)) score += 1;
     if (/[^a-zA-Z0-9]/.test(pass)) score += 1;
     
-    if (score <= 1) return { score, label: 'Weak', color: 'bg-red-500' };
-    if (score <= 2) return { score, label: 'Fair', color: 'bg-yellow-500' };
-    if (score <= 3) return { score, label: 'Good', color: 'bg-blue-500' };
-    return { score, label: 'Strong', color: 'bg-green-500' };
+    if (score <= 1) return { score, label: 'Weak', color: 'bg-status-dnd' };
+    if (score <= 2) return { score, label: 'Fair', color: 'bg-status-idle' };
+    if (score <= 3) return { score, label: 'Good', color: 'bg-accent' };
+    return { score, label: 'Strong', color: 'bg-status-online' };
   };
 
   const strength = getStrength(passphrase);

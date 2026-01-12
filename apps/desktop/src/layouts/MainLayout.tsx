@@ -139,7 +139,7 @@ export default function MainLayout() {
               </>
             ) : isDexPage ? (
               <>
-                <span className="text-blue-500">💰</span>
+                <span className="text-accent-light">💰</span>
                 <h1 className="font-semibold text-text-primary">DEX Swap</h1>
               </>
             ) : (

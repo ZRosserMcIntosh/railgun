@@ -148,14 +148,14 @@ export function StartDmModal({ isOpen, onClose }: StartDmModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4 shadow-xl">
-        <h2 className="text-xl font-bold text-white mb-4">Start a Direct Message</h2>
+      <div className="bg-surface-elevated rounded-lg p-6 w-full max-w-md mx-4 shadow-xl">
+        <h2 className="text-xl font-bold text-text-primary mb-4">Start a Direct Message</h2>
 
         {/* Message Yourself Button */}
         <button
           onClick={handleStartSelfDm}
           disabled={isStarting}
-          className="w-full mb-4 p-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+          className="w-full mb-4 p-3 bg-accent hover:bg-accent-hover disabled:bg-surface-hover disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center gap-2"
         >
           <span>💾</span>
           <span className="font-medium">Message Yourself (Saved Messages)</span>
@@ -163,10 +163,10 @@ export function StartDmModal({ isOpen, onClose }: StartDmModalProps) {
 
         <div className="relative mb-4">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-600"></div>
+            <div className="w-full border-t border-border"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-gray-800 text-gray-400">or search for a user</span>
+            <span className="px-2 bg-surface-elevated text-text-muted">or search for a user</span>
           </div>
         </div>
 
@@ -178,13 +178,13 @@ export function StartDmModal({ isOpen, onClose }: StartDmModalProps) {
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Search by username..."
-            className="flex-1 bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 bg-surface-hover text-text-primary rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-accent"
             autoFocus
           />
           <button
             onClick={handleSearch}
             disabled={isSearching || searchQuery.length < 2}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors"
+            className="bg-accent hover:bg-accent-hover disabled:bg-surface-hover disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors"
           >
             {isSearching ? 'Searching...' : 'Search'}
           </button>
@@ -203,13 +203,13 @@ export function StartDmModal({ isOpen, onClose }: StartDmModalProps) {
               onClick={() => setSelectedUser(user)}
               className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
                 selectedUser?.id === user.id
-                  ? 'bg-blue-600'
-                  : 'hover:bg-gray-700'
+                  ? 'bg-accent'
+                  : 'hover:bg-surface-hover'
               }`}
             >
               {/* Avatar */}
               <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center text-white font-semibold">
+                <div className="w-10 h-10 rounded-full bg-surface-hover flex items-center justify-center text-white font-semibold">
                   {user.avatarUrl ? (
                     <img
                       src={user.avatarUrl}
@@ -222,24 +222,24 @@ export function StartDmModal({ isOpen, onClose }: StartDmModalProps) {
                 </div>
                 {/* Presence indicator */}
                 <div
-                  className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-gray-800 ${
+                  className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-surface-elevated ${
                     user.presence === 'ONLINE'
-                      ? 'bg-green-500'
+                      ? 'bg-status-online'
                       : user.presence === 'AWAY'
-                      ? 'bg-yellow-500'
+                      ? 'bg-status-idle'
                       : user.presence === 'DND'
-                      ? 'bg-red-500'
-                      : 'bg-gray-500'
+                      ? 'bg-status-dnd'
+                      : 'bg-status-offline'
                   }`}
                 />
               </div>
 
               {/* User info */}
               <div className="flex-1 min-w-0">
-                <p className="text-white font-medium truncate">
+                <p className="text-text-primary font-medium truncate">
                   {user.displayName}
                 </p>
-                <p className="text-gray-400 text-sm truncate">@{user.username}</p>
+                <p className="text-text-muted text-sm truncate">@{user.username}</p>
               </div>
             </div>
           ))}
@@ -249,14 +249,14 @@ export function StartDmModal({ isOpen, onClose }: StartDmModalProps) {
         <div className="flex gap-3 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
+            className="px-4 py-2 text-text-secondary hover:text-text-primary transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleStartDm}
             disabled={!selectedUser || isStarting}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg transition-colors"
+            className="bg-accent hover:bg-accent-hover disabled:bg-surface-hover disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg transition-colors"
           >
             {isStarting ? 'Starting...' : 'Start Chat'}
           </button>

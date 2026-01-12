@@ -168,7 +168,7 @@ export default function BibleReader() {
                           ? 'bg-primary-500 text-white'
                           : isNewTestament
                           ? 'text-red-400 hover:bg-surface-secondary hover:text-red-300'
-                          : 'text-gray-300 hover:bg-surface-secondary hover:text-gray-200'
+                          : 'text-text-secondary hover:bg-surface-secondary hover:text-text-primary'
                       } ${book.chapters.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                       disabled={book.chapters.length === 0}
                     >

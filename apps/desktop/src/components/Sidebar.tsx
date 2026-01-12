@@ -342,10 +342,10 @@ export default function Sidebar() {
         {/* Downloads Button */}
         <button
           onClick={() => navigate('/downloads')}
-          className="w-12 h-12 rounded-2xl bg-gray-700 hover:bg-green-600 flex items-center justify-center transition-colors group"
+          className="w-12 h-12 rounded-2xl bg-surface-hover hover:bg-status-online flex items-center justify-center transition-colors group"
           title="Download Rail Gun"
         >
-          <svg className="w-6 h-6 text-gray-300 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="w-6 h-6 text-text-secondary group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
         </button>
@@ -354,7 +354,7 @@ export default function Sidebar() {
         {isDexEnabled && (
           <button
             onClick={() => navigate('/dex')}
-            className="w-12 h-12 rounded-2xl bg-blue-800 hover:bg-blue-600 flex items-center justify-center transition-colors group"
+            className="w-12 h-12 rounded-2xl bg-accent-dark hover:bg-accent flex items-center justify-center transition-colors group"
             title="DEX Swap"
           >
             <span className="text-xl font-bold text-white">$</span>
@@ -466,12 +466,12 @@ export default function Sidebar() {
                 {/* Avatar with presence or special icon for self */}
                 <div className="relative flex-shrink-0">
                   {isSelfDm ? (
-                    <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white text-sm">
+                    <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white text-sm">
                       💾
                     </div>
                   ) : (
                     <>
-                      <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-white text-sm font-semibold">
+                      <div className="w-8 h-8 rounded-full bg-surface-hover flex items-center justify-center text-white text-sm font-semibold">
                         {dm.peerAvatarUrl ? (
                           <img
                             src={dm.peerAvatarUrl}
@@ -485,12 +485,12 @@ export default function Sidebar() {
                       <div
                         className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-surface-secondary ${
                           dm.peerPresence === 'ONLINE'
-                            ? 'bg-green-500'
+                            ? 'bg-status-online'
                             : dm.peerPresence === 'AWAY'
-                            ? 'bg-yellow-500'
+                            ? 'bg-status-idle'
                             : dm.peerPresence === 'DND'
-                            ? 'bg-red-500'
-                            : 'bg-gray-500'
+                            ? 'bg-status-dnd'
+                            : 'bg-status-offline'
                         }`}
                       />
                     </>
