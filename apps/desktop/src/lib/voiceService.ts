@@ -6,7 +6,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { hasCapability, Capability } from '../billing';
+import { Capability } from '../billing';
 
 // ============================================================================
 // TYPES

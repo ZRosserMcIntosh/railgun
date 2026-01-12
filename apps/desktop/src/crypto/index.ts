@@ -106,18 +106,18 @@ class ElectronCryptoImpl implements RailGunCrypto {
     return bundle as PreKeyBundleForUpload;
   }
 
-  async generateMorePreKeys(count: number): Promise<Array<{ keyId: number; publicKey: string }>> {
+  async generateMorePreKeys(_count: number): Promise<Array<{ keyId: number; publicKey: string }>> {
     // TODO: Implement via IPC
     console.warn('[ElectronCrypto] generateMorePreKeys not yet implemented');
     return [];
   }
 
-  async ensureDmSession(peerUserId: string, peerPreKeyBundle?: PreKeyBundleFromServer): Promise<void> {
+  async ensureDmSession(_peerUserId: string, _peerPreKeyBundle?: PreKeyBundleFromServer): Promise<void> {
     // TODO: Implement full session management via IPC
-    console.log('[ElectronCrypto] ensureDmSession:', peerUserId);
+    console.log('[ElectronCrypto] ensureDmSession');
   }
 
-  async hasDmSession(peerUserId: string): Promise<boolean> {
+  async hasDmSession(_peerUserId: string): Promise<boolean> {
     // TODO: Implement via IPC
     return true;
   }
@@ -131,7 +131,7 @@ class ElectronCryptoImpl implements RailGunCrypto {
     return await window.electronAPI.crypto.decryptDm(peerUserId, message);
   }
 
-  async ensureChannelSession(channelId: string, memberUserIds: string[]): Promise<void> {
+  async ensureChannelSession(channelId: string, _memberUserIds: string[]): Promise<void> {
     // TODO: Implement channel encryption via IPC
     console.log('[ElectronCrypto] ensureChannelSession:', channelId);
   }
@@ -146,50 +146,50 @@ class ElectronCryptoImpl implements RailGunCrypto {
     };
   }
 
-  async decryptChannel(channelId: string, senderUserId: string, message: EncryptedChannelMessage): Promise<string> {
+  async decryptChannel(_channelId: string, _senderUserId: string, message: EncryptedChannelMessage): Promise<string> {
     // TODO: Implement via IPC
     return Buffer.from(message.ciphertext, 'base64').toString('utf-8');
   }
 
-  async processSenderKeyDistribution(channelId: string, senderUserId: string, distribution: Uint8Array): Promise<void> {
+  async processSenderKeyDistribution(_channelId: string, _senderUserId: string, _distribution: Uint8Array): Promise<void> {
     // TODO: Implement via IPC
   }
 
-  async getSenderKeyDistribution(channelId: string): Promise<Uint8Array> {
+  async getSenderKeyDistribution(_channelId: string): Promise<Uint8Array> {
     // TODO: Implement via IPC
     return new Uint8Array(0);
   }
 
-  computeSafetyNumber(peerUserId: string, peerIdentityKey: string): string {
+  computeSafetyNumber(_peerUserId: string, _peerIdentityKey: string): string {
     // TODO: Implement via IPC
     return '';
   }
 
-  async getSafetyNumberDetails(peerUserId: string, peerIdentityKey: string): Promise<unknown> {
+  async getSafetyNumberDetails(_peerUserId: string, _peerIdentityKey: string): Promise<unknown> {
     // TODO: Implement via IPC
     return {};
   }
 
-  async markIdentityVerified(peerUserId: string): Promise<void> {
+  async markIdentityVerified(_peerUserId: string): Promise<void> {
     // TODO: Implement via IPC
   }
 
-  async checkIdentityStatus(peerUserId: string, currentIdentityKey: string): Promise<unknown> {
+  async checkIdentityStatus(_peerUserId: string, _currentIdentityKey: string): Promise<unknown> {
     // TODO: Implement via IPC
     return { hasStoredIdentity: false };
   }
 
-  async storeIdentity(peerUserId: string, identityKey: string): Promise<{ isNew: boolean; hasChanged: boolean }> {
+  async storeIdentity(_peerUserId: string, _identityKey: string): Promise<{ isNew: boolean; hasChanged: boolean }> {
     // TODO: Implement via IPC
     return { isNew: true, hasChanged: false };
   }
 
-  async getStoredIdentity(peerUserId: string): Promise<unknown> {
+  async getStoredIdentity(_peerUserId: string): Promise<unknown> {
     // TODO: Implement via IPC
     return null;
   }
 
-  async hasIdentityChanged(peerUserId: string, currentIdentityKey: string): Promise<boolean> {
+  async hasIdentityChanged(_peerUserId: string, _currentIdentityKey: string): Promise<boolean> {
     // TODO: Implement via IPC
     return false;
   }
@@ -208,7 +208,7 @@ class ElectronCryptoImpl implements RailGunCrypto {
 }
 
 // Import SimpleCrypto as fallback for browser
-import { DevCryptoImpl as SimpleCryptoImpl, getCrypto as getSimpleCrypto, initCrypto as initSimpleCrypto } from './SimpleCrypto';
+import { getCrypto as getSimpleCrypto } from './SimpleCrypto';
 
 // Singleton instance
 let cryptoInstance: RailGunCrypto | null = null;

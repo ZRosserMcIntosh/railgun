@@ -95,7 +95,7 @@ const createMockFetch = (options: {
   latency?: number;
   errorType?: 'network' | 'timeout' | 'http';
 }) => {
-  return vi.fn().mockImplementation(async (url: string) => {
+  return vi.fn().mockImplementation(async (_url: string) => {
     await new Promise(resolve => setTimeout(resolve, options.latency || 50));
 
     if (options.errorType === 'network') {
@@ -115,8 +115,8 @@ const createMockFetch = (options: {
   });
 };
 
-// Mock RTCPeerConnection
-class MockRTCPeerConnection {
+// Mock RTCPeerConnection (exported to avoid unused warning)
+export class MockRTCPeerConnection {
   localDescription: RTCSessionDescription | null = null;
   remoteDescription: RTCSessionDescription | null = null;
   connectionState: RTCPeerConnectionState = 'new';

@@ -20,7 +20,6 @@ if (typeof globalThis.crypto === 'undefined' || !globalThis.crypto.subtle) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const nodeCrypto = require('node:crypto');
     if (nodeCrypto.webcrypto) {
-      // @ts-expect-error - assigning webcrypto to global
       globalThis.crypto = nodeCrypto.webcrypto;
     }
   } catch (e) {
@@ -78,12 +77,13 @@ if (typeof globalThis.DOMException === 'undefined') {
 
 // Mock window.electronAPI for tests running outside Electron
 if (typeof window !== 'undefined' && !window.electronAPI) {
-  // @ts-expect-error - mocking electronAPI
-  window.electronAPI = {
+  (window as any).electronAPI = {
     secureStore: {
       get: vi.fn().mockResolvedValue(null),
       set: vi.fn().mockResolvedValue(true),
       delete: vi.fn().mockResolvedValue(true),
+      clear: vi.fn().mockResolvedValue(true),
+      isAvailable: vi.fn().mockResolvedValue(true),
     },
     app: {
       getVersion: vi.fn().mockReturnValue('0.1.0-test'),
@@ -105,8 +105,7 @@ if (typeof window !== 'undefined' && !window.electronAPI) {
 
 if (typeof window !== 'undefined' && !window.localStorage) {
   const store: Record<string, string> = {};
-  // @ts-expect-error - mocking localStorage
-  window.localStorage = {
+  (window as any).localStorage = {
     getItem: (key: string) => store[key] ?? null,
     setItem: (key: string, value: string) => { store[key] = value; },
     removeItem: (key: string) => { delete store[key]; },

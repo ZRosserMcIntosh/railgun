@@ -190,18 +190,6 @@ export class AnalyticsClient {
   }
 
   /**
-   * Save config
-   */
-  private saveConfig(): void {
-    try {
-      const toSave = { enabled: this.config.enabled };
-      fs.writeFileSync(CONFIG_FILE, JSON.stringify(toSave), { encoding: 'utf-8', mode: 0o600 });
-    } catch {
-      // Ignore
-    }
-  }
-
-  /**
    * Load user consent preference
    */
   private loadConsent(): void {

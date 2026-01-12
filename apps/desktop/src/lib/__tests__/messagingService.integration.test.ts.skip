@@ -108,6 +108,77 @@ vi.mock('../../stores/authStore', () => ({
 }));
 
 // ============================================================================
+// MOCK HELPERS
+// ============================================================================
+
+// Mock crypto object that tests can manipulate
+const mockCrypto = {
+  isInitialized: vi.fn(() => true),
+  init: vi.fn(),
+  setLocalUserId: vi.fn(),
+  getPreKeyBundle: vi.fn(() => ({
+    identityKey: 'mock-identity-key',
+    signedPreKey: { keyId: 1, publicKey: 'mock-signed-prekey', signature: 'mock-sig' },
+    preKeys: [{ keyId: 1, publicKey: 'mock-prekey' }],
+    registrationId: 12345,
+  })),
+  hasDmSession: vi.fn(() => true),
+  ensureDmSession: vi.fn(),
+  encryptDm: vi.fn(() => ({
+    ciphertext: 'encrypted-dm-message',
+    senderDeviceId: 1,
+    type: 'message',
+    registrationId: 12345,
+  })),
+  decryptDm: vi.fn(() => 'decrypted-message'),
+  hasChannelSession: vi.fn(() => true),
+  ensureChannelSession: vi.fn(),
+  encryptChannel: vi.fn(() => ({
+    ciphertext: 'encrypted-channel-message',
+    senderDeviceId: 1,
+    distributionId: 'channel-123',
+  })),
+  decryptChannel: vi.fn(() => 'decrypted-channel-message'),
+  getSenderKeyDistribution: vi.fn(() => 'mock-sender-key-distribution-base64'),
+  processSenderKeyDistribution: vi.fn(),
+};
+
+// Simple messaging service mock
+let messagingServiceInstance: {
+  initialize: (userId: string) => Promise<void>;
+  sendDm: (recipientId: string, content: string) => Promise<unknown>;
+  sendChannelMessage: (channelId: string, content: string) => Promise<unknown>;
+  decryptMessage: (message: unknown) => Promise<string>;
+} | null = null;
+
+function getMessagingService() {
+  if (!messagingServiceInstance) {
+    messagingServiceInstance = {
+      initialize: async (userId: string) => {
+        mockCrypto.setLocalUserId(userId);
+        await mockApi.registerDeviceKeys();
+      },
+      sendDm: async (recipientId: string, content: string) => {
+        const encrypted = mockCrypto.encryptDm(recipientId, content);
+        return mockApi.sendDm(recipientId, encrypted);
+      },
+      sendChannelMessage: async (channelId: string, content: string) => {
+        const encrypted = mockCrypto.encryptChannel(channelId, content);
+        return mockApi.sendMessage(channelId, encrypted);
+      },
+      decryptMessage: async (message: unknown) => {
+        return mockCrypto.decryptDm('sender', message as any);
+      },
+    };
+  }
+  return messagingServiceInstance;
+}
+
+function resetMessagingService() {
+  messagingServiceInstance = null;
+}
+
+// ============================================================================
 // TESTS
 // ============================================================================
 

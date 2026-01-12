@@ -4,7 +4,7 @@
  * Provides UI for voice channel controls with Pro feature gating.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Mic,
   MicOff,
@@ -13,14 +13,11 @@ import {
   MonitorUp,
   Volume2,
   VolumeX,
-  Settings,
   Lock,
   Activity,
   Shield,
 } from 'lucide-react';
 import { getVoiceService, type VoiceControlsState, type CallStats } from '../lib/voiceService';
-import { hasCapability, Capability } from '../billing';
-import { useAuthStore } from '../stores/authStore';
 
 interface VoiceControlsProps {
   channelId: string;
@@ -28,7 +25,7 @@ interface VoiceControlsProps {
   onUpgradeClick?: () => void;
 }
 
-export function VoiceControls({ channelId, isPro, onUpgradeClick }: VoiceControlsProps) {
+export function VoiceControls({ isPro, onUpgradeClick }: VoiceControlsProps) {
   const voiceService = getVoiceService();
   const [state, setState] = useState<VoiceControlsState>(voiceService.getState());
   const [stats, setStats] = useState<CallStats | null>(null);

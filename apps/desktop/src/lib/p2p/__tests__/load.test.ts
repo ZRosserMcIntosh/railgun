@@ -143,7 +143,7 @@ class VirtualUser {
   constructor(
     id: number,
     private wsEndpoint: string,
-    private apiEndpoint: string,
+    _apiEndpoint: string,
     tracker: LatencyTracker
   ) {
     this.id = `user-${id.toString().padStart(6, '0')}`;

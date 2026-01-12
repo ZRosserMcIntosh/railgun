@@ -7,7 +7,7 @@
  * - DTLS fingerprint verification
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   generateX25519KeyPair,
   deriveX25519SharedSecret,

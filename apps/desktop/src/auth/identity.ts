@@ -65,8 +65,8 @@ export async function computeUserId(identityPublicKey: string): Promise<string> 
   const hash = sodium.crypto_generichash(32, publicKeyBytes);
   
   // Convert to hex and take first 32 chars for readability
-  return Array.from(hash)
-    .map(b => b.toString(16).padStart(2, '0'))
+  return Array.from(hash as Uint8Array)
+    .map((b: number) => b.toString(16).padStart(2, '0'))
     .join('')
     .slice(0, 32);
 }
@@ -97,8 +97,8 @@ export async function computeFingerprint(identityPublicKey: string): Promise<str
   const hash = sodium.crypto_generichash(32, publicKeyBytes);
   
   // Format as space-separated 4-char groups
-  const hex = Array.from(hash)
-    .map(b => b.toString(16).padStart(2, '0'))
+  const hex = Array.from(hash as Uint8Array)
+    .map((b: number) => b.toString(16).padStart(2, '0'))
     .join('')
     .toUpperCase();
   

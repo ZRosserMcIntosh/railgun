@@ -9,7 +9,7 @@
  * - Principle 7: Minimal Metadata - Explains privacy-first approach
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from './ui';
 import railgunLogo from '../assets/railgun-logo.png';
 
