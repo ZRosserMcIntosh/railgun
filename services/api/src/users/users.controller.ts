@@ -6,6 +6,7 @@ import {
   UseGuards,
   NotFoundException,
   BadRequestException,
+  Request,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -24,6 +25,30 @@ export interface UserProfile {
 @UseGuards(JwtAuthGuard, RateLimitGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  /**
+   * Get current authenticated user.
+   * GET /users/me
+   */
+  @Get('me')
+  async getCurrentUser(@Request() req: any): Promise<{ user: UserProfile }> {
+    const userId = req.user.sub; // JWT payload contains user ID in 'sub' field
+    const user = await this.usersService.findById(userId);
+    
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      user: {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl,
+        presence: user.presence,
+      },
+    };
+  }
 
   /**
    * Search users by username prefix.
