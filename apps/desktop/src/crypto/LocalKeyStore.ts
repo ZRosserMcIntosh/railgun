@@ -31,8 +31,9 @@ async function initSodium(): Promise<SodiumType> {
   
   // Dynamic import to handle ESM/CJS
   const sodiumModule = await import('libsodium-wrappers');
-  await sodiumModule.default.ready;
-  sodium = sodiumModule.default as unknown as SodiumType;
+  const sodiumLib = (sodiumModule as any).default ?? sodiumModule;
+  await sodiumLib.ready;
+  sodium = sodiumLib as unknown as SodiumType;
   return sodium;
 }
 

@@ -10,7 +10,10 @@
  * - User ID is derived from public key (hash) for privacy
  */
 
-import sodium from 'libsodium-wrappers';
+import * as sodiumModule from 'libsodium-wrappers';
+
+// Handle both ESM namespace import and CommonJS module.exports
+const sodium = (sodiumModule as any).default ?? sodiumModule;
 
 import { getCrypto } from '../crypto';
 

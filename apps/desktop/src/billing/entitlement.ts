@@ -10,7 +10,10 @@
  * - Tokens are bound to user identity (public key)
  */
 
-import sodium from 'libsodium-wrappers';
+import * as sodiumModule from 'libsodium-wrappers';
+
+// Handle both ESM namespace import and CommonJS module.exports
+const sodium = (sodiumModule as any).default ?? sodiumModule;
 
 import {
   Capability,

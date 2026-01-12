@@ -1,0 +1,20 @@
+# Rail Gun Terraform Variables
+# Copy this to terraform.tfvars and fill in your values
+
+aws_region = "us-east-1"
+environment = "production"
+
+# Optional: Your domain name (leave empty if not using custom domain)
+domain_name = ""
+
+# Database password (generate with: openssl rand -base64 24)
+db_password = "CHANGE_ME_SECURE_PASSWORD"
+
+# JWT secret (generate with: openssl rand -base64 32)
+jwt_secret = "CHANGE_ME_JWT_SECRET"
+
+# Recovery code encryption secret (generate with: openssl rand -base64 32)
+recovery_code_secret = "CHANGE_ME_RECOVERY_SECRET"
+
+# DM ID encryption secret (generate with: openssl rand -base64 32)
+dm_id_secret = "CHANGE_ME_DM_SECRET"

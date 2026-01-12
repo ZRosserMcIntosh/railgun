@@ -67,10 +67,15 @@ export default defineConfig({
     },
     commonjsOptions: {
       include: [/packages\/shared/, /node_modules/],
+      transformMixedEsModules: true,
     },
   },
   optimizeDeps: {
-    include: ['@railgun/shared'],
-    exclude: ['@signalapp/libsignal-client', 'node-gyp-build', 'libsodium-wrappers'],
+    include: ['@railgun/shared', 'libsodium-wrappers'],
+    exclude: ['@signalapp/libsignal-client', 'node-gyp-build'],
+    esbuildOptions: {
+      // Force CommonJS handling for libsodium
+      mainFields: ['main', 'module'],
+    },
   },
 });

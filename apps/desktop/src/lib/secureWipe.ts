@@ -120,7 +120,8 @@ async function generateSecureRandom(length: number): Promise<Uint8Array> {
     crypto.getRandomValues(buffer);
   } else {
     // Fallback to libsodium if available
-    const sodium = await import('libsodium-wrappers');
+    const sodiumModule = await import('libsodium-wrappers');
+    const sodium = (sodiumModule as any).default ?? sodiumModule;
     await sodium.ready;
     return sodium.randombytes_buf(length);
   }
@@ -141,7 +142,8 @@ async function generateOverwriteData(
   
   if (pattern === 'crypto') {
     // Use libsodium for maximum entropy
-    const sodium = await import('libsodium-wrappers');
+    const sodiumModule = await import('libsodium-wrappers');
+    const sodium = (sodiumModule as any).default ?? sodiumModule;
     await sodium.ready;
     return sodium.randombytes_buf(length);
   }
@@ -411,12 +413,13 @@ async function destroyLocalCryptoKeys(
     for (const keyType of legacyKeyTypes) {
       const key = localStorage.getItem(keyType);
       if (key) {
-        const sodium = await import('libsodium-wrappers');
+        const sodiumModule = await import('libsodium-wrappers');
+        const sodium = (sodiumModule as any).default ?? sodiumModule;
         await sodium.ready;
         
         // Overwrite with secure random
-        const randomKey = sodium.default.randombytes_buf(key.length);
-        localStorage.setItem(keyType, sodium.default.to_base64(randomKey));
+        const randomKey = sodium.randombytes_buf(key.length);
+        localStorage.setItem(keyType, sodium.to_base64(randomKey));
         localStorage.setItem(keyType, '0'.repeat(key.length));
         localStorage.removeItem(keyType);
         
