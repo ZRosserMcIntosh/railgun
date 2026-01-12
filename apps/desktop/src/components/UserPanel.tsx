@@ -4,6 +4,7 @@ import KeyBackup from './KeyBackup';
 import RecoveryCodesModal from './RecoveryCodesModal';
 import { getApiClient } from '../lib/api';
 import { enableCrashReporting, disableCrashReporting } from '../lib/sentry';
+import { useSettingsStore } from '../stores/settingsStore';
 
 interface User {
   id: string;
@@ -25,6 +26,9 @@ export default function UserPanel({ user, onLogout }: UserPanelProps) {
   const [crashReportingEnabled, setCrashReportingEnabled] = useState(() => {
     return localStorage.getItem('crashReportingEnabled') !== 'false';
   });
+  
+  // Auto-signout settings
+  const { autoSignoutEnabled, autoSignoutMinutes, setAutoSignout } = useSettingsStore();
 
   if (!user) return null;
 
@@ -190,6 +194,56 @@ export default function UserPanel({ user, onLogout }: UserPanelProps) {
 
             {/* Content */}
             <div className="p-4 space-y-6">
+              {/* Auto-Signout Setting */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium text-text-primary">Auto Sign-Out</h3>
+                    <p className="text-xs text-text-muted mt-1">
+                      Automatically sign out after period of inactivity
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setAutoSignout(!autoSignoutEnabled, autoSignoutMinutes)}
+                    title={autoSignoutEnabled ? 'Disable auto sign-out' : 'Enable auto sign-out'}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      autoSignoutEnabled ? 'bg-primary-500' : 'bg-dark-700'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        autoSignoutEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {autoSignoutEnabled && (
+                  <div>
+                    <label className="block text-xs text-text-secondary mb-2">
+                      Sign out after (minutes)
+                    </label>
+                    <div className="flex gap-2">
+                      {[5, 10, 15, 30, 60].map((minutes) => (
+                        <button
+                          key={minutes}
+                          onClick={() => setAutoSignout(true, minutes)}
+                          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                            autoSignoutMinutes === minutes
+                              ? 'bg-primary-500 text-white'
+                              : 'bg-dark-700 text-text-secondary hover:bg-dark-600'
+                          }`}
+                        >
+                          {minutes}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-dark-900" />
+
               {/* Crash Reporting Toggle */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">

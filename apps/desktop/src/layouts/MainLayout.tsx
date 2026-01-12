@@ -12,6 +12,7 @@ import { VoipPage } from '../components/voip';
 import BibleReader from '../components/BibleReader';
 import CryptoExchange from '../components/CryptoExchange';
 import { useFeature, usePremiumFeature, FeatureFlags } from '../hooks';
+import { useAutoSignout } from '../hooks/useAutoSignout';
 
 export default function MainLayout() {
   const { accessToken, user, logout, isTokensLoaded } = useAuthStore();
@@ -21,6 +22,9 @@ export default function MainLayout() {
   const [cryptoReady, setCryptoReady] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  
+  // Auto-signout timer
+  useAutoSignout();
   
   // Feature flags
   const isDexEnabled = useFeature(FeatureFlags.DEX_SWAP);

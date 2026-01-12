@@ -363,17 +363,26 @@ export async function saveEntitlementToken(tokenString: string): Promise<boolean
       return await window.electronAPI.secureStore.set(ENTITLEMENT_STORAGE_KEY, tokenString);
     } catch (error) {
       console.error('[Entitlement] Failed to save to secure storage:', error);
-      // Fall through to localStorage
+      // SECURITY: Fail closed in production - don't fallback to insecure storage
+      if (import.meta.env.PROD) {
+        throw new Error('Secure storage unavailable');
+      }
+      // Fall through to localStorage in development only
     }
   }
   
-  // Fallback to localStorage
-  try {
-    localStorage.setItem(ENTITLEMENT_STORAGE_KEY, tokenString);
-    return true;
-  } catch {
-    return false;
+  // Development-only fallback to localStorage
+  if (!import.meta.env.PROD) {
+    try {
+      localStorage.setItem(ENTITLEMENT_STORAGE_KEY, tokenString);
+      return true;
+    } catch {
+      return false;
+    }
   }
+  
+  // Production without Electron - fail closed
+  throw new Error('Secure storage unavailable');
 }
 
 /**
@@ -385,16 +394,25 @@ export async function loadEntitlementToken(): Promise<string | null> {
       return await window.electronAPI.secureStore.get(ENTITLEMENT_STORAGE_KEY);
     } catch (error) {
       console.error('[Entitlement] Failed to load from secure storage:', error);
-      // Fall through to localStorage
+      // SECURITY: Fail closed in production - don't fallback to insecure storage
+      if (import.meta.env.PROD) {
+        return null;
+      }
+      // Fall through to localStorage in development only
     }
   }
   
-  // Fallback to localStorage
-  try {
-    return localStorage.getItem(ENTITLEMENT_STORAGE_KEY);
-  } catch {
-    return null;
+  // Development-only fallback to localStorage
+  if (!import.meta.env.PROD) {
+    try {
+      return localStorage.getItem(ENTITLEMENT_STORAGE_KEY);
+    } catch {
+      return null;
+    }
   }
+  
+  // Production without Electron - no fallback
+  return null;
 }
 
 /**
