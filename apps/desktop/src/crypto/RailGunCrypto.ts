@@ -30,6 +30,7 @@ import {
   type IdentityStatus,
   type StoredIdentity,
 } from './SafetyNumber';
+import { cryptoLogger } from '../lib/logger';
 
 // ============================================================================
 // RAIL GUN CRYPTO IMPLEMENTATION
@@ -74,7 +75,7 @@ export class RailGunCryptoImpl implements RailGunCrypto {
     this.hashFunction = createHashFunction(sodium);
 
     this.initialized = true;
-    console.log('[RailGunCrypto] Initialized');
+    cryptoLogger.debug('Initialized');
   }
 
   /**
@@ -436,7 +437,7 @@ export class RailGunCryptoImpl implements RailGunCrypto {
     }
 
     await this.identityStore.markVerified(peerUserId);
-    console.log(`[RailGunCrypto] Identity verified for ${peerUserId}`);
+    cryptoLogger.debug(`Identity verified for ${peerUserId}`);
   }
 
   /**
@@ -477,8 +478,8 @@ export class RailGunCryptoImpl implements RailGunCrypto {
     const result = await this.identityStore.storeIdentity(peerUserId, identityKey);
     
     if (result.hasChanged) {
-      console.warn(
-        `[RailGunCrypto] ⚠️ IDENTITY CHANGED for ${peerUserId}! ` +
+      cryptoLogger.warn(
+        `⚠️ IDENTITY CHANGED for ${peerUserId}! ` +
         'This could indicate a security issue or the user reinstalled.'
       );
     }
@@ -521,7 +522,7 @@ export class RailGunCryptoImpl implements RailGunCrypto {
     await this.keyStore.clear();
     this.initialized = false;
     this.localUserId = null;
-    console.log('[RailGunCrypto] Cleared all data');
+    cryptoLogger.debug('Cleared all data');
   }
 
   /**
@@ -536,7 +537,7 @@ export class RailGunCryptoImpl implements RailGunCrypto {
    * 3. In-memory key zeroing
    */
   async cryptoShred(): Promise<void> {
-    console.log('[RailGunCrypto] 🔥 CRYPTO-SHRED: Initiating permanent key destruction');
+    cryptoLogger.debug('🔥 CRYPTO-SHRED: Initiating permanent key destruction');
     
     // First clear identity cache
     if (this.identityStore) {
@@ -552,7 +553,7 @@ export class RailGunCryptoImpl implements RailGunCrypto {
     this.identityStore = null;
     this.hashFunction = null;
     
-    console.log('[RailGunCrypto] 🔥 CRYPTO-SHRED complete - all keys permanently destroyed');
+    cryptoLogger.debug('🔥 CRYPTO-SHRED complete - all keys permanently destroyed');
   }
 
   // ==================== HELPERS ====================

@@ -17,7 +17,7 @@ import {
   Activity,
   Shield,
 } from 'lucide-react';
-import { getVoiceService, type VoiceControlsState, type CallStats } from '../lib/voiceService';
+import { getVoiceService, type VoiceControlsState, type CallStats, type PreCallCheck } from '../lib/voiceService';
 
 interface VoiceControlsProps {
   channelId: string;
@@ -303,7 +303,7 @@ interface PreCallDiagnosticsProps {
 export function PreCallDiagnostics({ onJoin, onCancel }: PreCallDiagnosticsProps) {
   const voiceService = getVoiceService();
   const [checking, setChecking] = useState(true);
-  const [devices, setDevices] = useState<any>(null);
+  const [devices, setDevices] = useState<PreCallCheck['devices'] | null>(null);
   const [networkStatus, setNetworkStatus] = useState<'good' | 'fair' | 'poor'>('good');
   const [echoTestStatus, setEchoTestStatus] = useState<'idle' | 'recording' | 'playing' | 'complete'>('idle');
   
@@ -352,7 +352,7 @@ export function PreCallDiagnostics({ onJoin, onCancel }: PreCallDiagnosticsProps
                 className="w-full rounded-lg bg-surface-base px-3 py-2 text-text-primary"
                 title="Select microphone"
               >
-                {devices.microphones.map((device: MediaDeviceInfo) => (
+                {devices?.microphones.map((device: MediaDeviceInfo) => (
                   <option key={device.deviceId} value={device.deviceId}>
                     {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
                   </option>
@@ -367,7 +367,7 @@ export function PreCallDiagnostics({ onJoin, onCancel }: PreCallDiagnosticsProps
                 className="w-full rounded-lg bg-surface-base px-3 py-2 text-text-primary"
                 title="Select speakers"
               >
-                {devices.speakers.map((device: MediaDeviceInfo) => (
+                {devices?.speakers.map((device: MediaDeviceInfo) => (
                   <option key={device.deviceId} value={device.deviceId}>
                     {device.label || `Speaker ${device.deviceId.slice(0, 8)}`}
                   </option>

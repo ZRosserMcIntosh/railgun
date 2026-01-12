@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../ui/Button';
 import { useGroupsStore } from '../../stores/groupsStore';
 import { JoinPolicy, PostPolicy, GroupType } from '@railgun/shared';
+import { groupsLogger } from '../../lib/logger';
 
 // ============================================================================
 // ICONS
@@ -216,9 +217,8 @@ export function GroupDiscovery() {
   }, [discoverableGroups, joinGroup, requestToJoin, navigate]);
 
   const handleScanQR = useCallback(() => {
-    // Open QR scanner modal
-    // This would use a camera API or allow file upload
-    console.log('Open QR scanner');
+    // TODO: Open QR scanner modal - use camera API or allow file upload
+    groupsLogger.debug('QR scanner requested - not yet implemented');
   }, []);
 
   return (

@@ -11,9 +11,10 @@
  */
 
 import * as sodiumModule from 'libsodium-wrappers';
+import { resolveSodiumModule } from '../lib/sodiumHelpers';
 
 // Handle both ESM namespace import and CommonJS module.exports
-const sodium = (sodiumModule as any).default ?? sodiumModule;
+const sodium = resolveSodiumModule(sodiumModule);
 
 import { getCrypto } from '../crypto';
 

@@ -15,6 +15,8 @@
 /// <reference types="libsodium-wrappers" />
 import type libsodium from 'libsodium-wrappers';
 import type { LocalKeyStore } from './types';
+import { keyStoreLogger } from '../lib/logger';
+import { resolveSodiumModule } from '../lib/sodiumHelpers';
 
 // libsodium type alias
 type SodiumType = typeof libsodium;
@@ -31,7 +33,7 @@ async function initSodium(): Promise<SodiumType> {
   
   // Dynamic import to handle ESM/CJS
   const sodiumModule = await import('libsodium-wrappers');
-  const sodiumLib = (sodiumModule as any).default ?? sodiumModule;
+  const sodiumLib = resolveSodiumModule(sodiumModule as Parameters<typeof resolveSodiumModule>[0]);
   await sodiumLib.ready;
   sodium = sodiumLib as unknown as SodiumType;
   return sodium;
@@ -403,7 +405,7 @@ export class LocalKeyStoreImpl implements LocalKeyStore {
     }
     const s = sodium!;
     
-    console.log('[LocalKeyStore] 🔥 CRYPTO-SHRED initiated');
+    keyStoreLogger.debug('🔥 CRYPTO-SHRED initiated');
     
     try {
       // Step 1: Get all keys and overwrite them with random data (3 passes)
@@ -427,7 +429,7 @@ export class LocalKeyStoreImpl implements LocalKeyStore {
           await this.deleteFromDb(key);
         }
         
-        console.log(`[LocalKeyStore] 🔥 Overwritten and deleted ${allKeys.length} keys`);
+        keyStoreLogger.debug(`🔥 Overwritten and deleted ${allKeys.length} keys`);
       }
       
       // Step 2: Clear the entire IndexedDB store
@@ -443,13 +445,13 @@ export class LocalKeyStoreImpl implements LocalKeyStore {
           request.onsuccess = () => resolve();
         });
         
-        console.log('[LocalKeyStore] 🔥 IndexedDB database deleted');
+        keyStoreLogger.debug('🔥 IndexedDB database deleted');
       }
       
       // Step 3: Delete master key from OS keychain
       if (typeof window !== 'undefined' && window.electronAPI?.secureStore) {
         await window.electronAPI.secureStore.delete(LocalKeyStoreImpl.MASTER_KEY_ID);
-        console.log('[LocalKeyStore] 🔥 Master key deleted from OS keychain');
+        keyStoreLogger.debug('🔥 Master key deleted from OS keychain');
       }
       
       // Step 4: Zero out in-memory master key
@@ -459,15 +461,15 @@ export class LocalKeyStoreImpl implements LocalKeyStore {
         this.masterKey.set(randomOverwrite);
         this.masterKey.fill(0);
         this.masterKey = null;
-        console.log('[LocalKeyStore] 🔥 In-memory master key zeroed');
+        keyStoreLogger.debug('🔥 In-memory master key zeroed');
       }
       
       this.initialized = false;
       
-      console.log('[LocalKeyStore] 🔥 CRYPTO-SHRED complete - all key material destroyed');
+      keyStoreLogger.debug('🔥 CRYPTO-SHRED complete - all key material destroyed');
       
     } catch (error) {
-      console.error('[LocalKeyStore] CRYPTO-SHRED error:', error);
+      keyStoreLogger.error('CRYPTO-SHRED error:', error);
       throw error;
     }
   }

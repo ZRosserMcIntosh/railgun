@@ -65,7 +65,7 @@ interface IdentityVerificationActions {
 export function useIdentityVerification(
   options: UseIdentityVerificationOptions
 ): [IdentityVerificationState, IdentityVerificationActions] {
-  const { userId, identityKey, username: _username, autoCheck = true } = options;
+  const { userId, identityKey, autoCheck = true } = options;
 
   const [state, setState] = useState<IdentityVerificationState>({
     isLoading: false,

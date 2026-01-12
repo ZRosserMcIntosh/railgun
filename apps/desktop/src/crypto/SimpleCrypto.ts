@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * DevCrypto - Development/Testing Crypto Shim using libsodium-wrappers
  * 
@@ -33,9 +34,10 @@
  */
 
 import * as sodiumModule from 'libsodium-wrappers';
+import { resolveSodiumModule } from '../lib/sodiumHelpers';
 
 // Handle both ESM namespace import and CommonJS module.exports
-const sodium = (sodiumModule as any).default ?? sodiumModule;
+const sodium = resolveSodiumModule(sodiumModule);
 
 import {
   computeSafetyNumberFromBase64,
@@ -44,6 +46,7 @@ import {
   type IdentityStatus,
   type StoredIdentity,
 } from './SafetyNumber';
+import type { PreKeyBundleFromServer } from './types';
 
 let sodiumReady = false;
 
@@ -407,7 +410,7 @@ class DevCryptoImpl {
     return this.peerKeyCache.has(userId);
   }
 
-  async ensureDmSession(userId: string, preKeyBundle?: any): Promise<void> {
+  async ensureDmSession(userId: string, preKeyBundle?: PreKeyBundleFromServer): Promise<void> {
     // Extract and cache the identity key from the bundle
     if (preKeyBundle?.identityKey) {
       this.peerKeyCache.set(userId, preKeyBundle.identityKey);
@@ -431,7 +434,7 @@ class DevCryptoImpl {
   async establishSession(
     userId: string,
     deviceId: number,
-    _preKeyBundle: any
+    _preKeyBundle: PreKeyBundleFromServer
   ): Promise<void> {
     // Simplified: no-op for now
     console.log(`[DevCrypto] Session established with ${userId}:${deviceId}`);

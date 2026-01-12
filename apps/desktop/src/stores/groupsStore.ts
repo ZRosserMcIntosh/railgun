@@ -204,7 +204,8 @@ export const useGroupsStore = create<GroupsState>()(
           
           // Update local state
           set(state => {
-            const { [groupId]: _, ...rest } = state.memberships;
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { [groupId]: _removed, ...rest } = state.memberships;
             return { memberships: rest };
           });
           
