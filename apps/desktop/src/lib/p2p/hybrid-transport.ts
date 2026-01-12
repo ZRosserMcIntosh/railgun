@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Hybrid Transport Service
  *
@@ -895,13 +896,14 @@ export class HybridTransportService {
       case 'p2p-only':
         return this.sendViaP2P(envelope);
       
-      case 'hybrid':
+      case 'hybrid': {
         // Send via both for redundancy
         const [awsAcks, p2pAcks] = await Promise.all([
           this.sendViaAWS(envelope).catch(() => []),
           this.sendViaP2P(envelope).catch(() => []),
         ]);
         return [...awsAcks, ...p2pAcks];
+      }
       
       default:
         throw new Error('Transport not connected');

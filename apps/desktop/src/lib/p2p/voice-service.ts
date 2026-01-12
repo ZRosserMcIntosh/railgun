@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * P2P Voice Service
  *
@@ -634,12 +635,13 @@ export class P2PVoiceService {
     if (!participant?.connection) return;
 
     switch (message.type) {
-      case 'offer':
+      case 'offer': {
         await participant.connection.setRemoteDescription(message.sdp as RTCSessionDescriptionInit);
         const answer = await participant.connection.createAnswer();
         await participant.connection.setLocalDescription(answer);
         this.sendSignalingMessage(fromPeerId, { type: 'answer', sdp: answer });
         break;
+      }
 
       case 'answer':
         await participant.connection.setRemoteDescription(message.sdp as RTCSessionDescriptionInit);

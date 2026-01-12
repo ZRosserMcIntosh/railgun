@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Update Verification Service
  * 
@@ -489,6 +490,8 @@ export class UpdateService {
         const chunks: Uint8Array[] = [];
         let received = 0;
         
+        // Read all chunks from stream until complete
+        // eslint-disable-next-line no-constant-condition
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;

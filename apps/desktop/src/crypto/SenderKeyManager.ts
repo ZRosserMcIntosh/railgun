@@ -22,6 +22,10 @@
  *    messages from old epochs after a grace period.
  */
 
+import { createLogger } from '../lib/logger';
+
+const logger = createLogger('SenderKeyManager');
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -255,8 +259,8 @@ export class SenderKeyManager {
 
     this.senderKeys.set(channelId, state);
     
-    console.log(
-      `[SenderKeyManager] Created sender key for ${channelId}, ` +
+    logger.debug(
+      `Created sender key for ${channelId}, ` +
       `epoch ${epochNumber}, reason: ${reason}`
     );
 
@@ -328,8 +332,8 @@ export class SenderKeyManager {
     // Just update member list, no rekey
     state.currentEpoch.memberIds = allMemberIds;
     
-    console.log(
-      `[SenderKeyManager] Member ${newMemberId} added to ${channelId}, ` +
+    logger.debug(
+      `Member ${newMemberId} added to ${channelId}, ` +
       `distributing existing epoch ${state.currentEpoch.epochNumber}`
     );
 
@@ -357,8 +361,8 @@ export class SenderKeyManager {
       previousEpoch
     );
 
-    console.log(
-      `[SenderKeyManager] ⚠️ Member ${removedMemberId} removed from ${channelId}, ` +
+    logger.warn(
+      `⚠️ Member ${removedMemberId} removed from ${channelId}, ` +
       `REKEYED to epoch ${newState.currentEpoch.epochNumber}`
     );
 
@@ -556,7 +560,7 @@ export class SenderKeyManager {
       
       case 'full':
         // Requires key escrow - not recommended for E2E
-        console.warn('[SenderKeyManager] Full history access requires key escrow');
+        logger.warn('Full history access requires key escrow');
         return true;
       
       default:

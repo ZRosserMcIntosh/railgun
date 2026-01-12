@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Rail Gun P2P Relay Service
  *
@@ -626,10 +627,11 @@ export class P2PRelayService {
     switch (proof.type) {
       case 'pow':
         return verifyProofOfWork(JSON.parse(proof.data));
-      case 'reputation':
+      case 'reputation': {
         // Verify peer has sufficient reputation
         const rep = this.reputation.getReputation(proof.data);
         return rep !== undefined && !rep.blacklisted;
+      }
       default:
         return false;
     }

@@ -7,6 +7,8 @@
  * 3. Common mocks
  */
 
+/* eslint-disable @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any, @typescript-eslint/no-var-requires, no-console */
+
 import { vi } from 'vitest';
 
 // ============================================================================
@@ -17,7 +19,6 @@ import { vi } from 'vitest';
 // Node 20+ has crypto.webcrypto, but we need it on globalThis.crypto
 if (typeof globalThis.crypto === 'undefined' || !globalThis.crypto.subtle) {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const nodeCrypto = require('node:crypto');
     if (nodeCrypto.webcrypto) {
       globalThis.crypto = nodeCrypto.webcrypto;

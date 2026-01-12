@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Sentry Integration for Error Tracking
  * 

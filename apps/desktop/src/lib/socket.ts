@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { io, Socket } from 'socket.io-client';
 import { WSEventType, MessageStatus, ConversationType } from '@railgun/shared';
 import { getMessagingService, SendMessageOptions } from './messagingService';

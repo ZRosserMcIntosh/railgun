@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Rail Gun Pro - Billing Store
  * 

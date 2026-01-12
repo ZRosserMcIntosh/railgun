@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * SECURE WIPE SERVICE - Military/Intelligence-Grade Data Destruction
  * 

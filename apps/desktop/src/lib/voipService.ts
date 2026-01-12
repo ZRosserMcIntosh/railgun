@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * VOIP Service - Handles integration with VOIP providers for real phone calls
  * 

@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Peer-Hosted TURN Relay Service
  * 

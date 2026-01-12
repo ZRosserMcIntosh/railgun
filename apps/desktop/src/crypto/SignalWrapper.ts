@@ -26,6 +26,9 @@
 
 import * as Signal from '@signalapp/libsignal-client';
 import type { SignalWrapper, LocalKeyStore } from './types';
+import { createLogger } from '../lib/logger';
+
+const logger = createLogger('SignalWrapper');
 
 // Helper for comparing Uint8Arrays
 function arraysEqual(a: Uint8Array, b: Uint8Array): boolean {
@@ -516,7 +519,7 @@ export class SignalWrapperImpl implements SignalWrapper {
     }
 
     this.initialized = true;
-    console.log('[SignalWrapper] Initialized');
+    logger.debug('Initialized');
   }
 
   /**

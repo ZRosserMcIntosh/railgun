@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   QRAuthSessionStatus,
@@ -125,7 +126,7 @@ export function useQRAuth(options?: {
           setState(prev => ({ ...prev, status: 'scanned' }));
           break;
 
-        case QRAuthSessionStatus.COMPLETED:
+        case QRAuthSessionStatus.COMPLETED: {
           // Exchange for token
           const tokenResponse = await fetch(`${API_BASE_URL}/auth/sessions/${sessionId}/exchange`, {
             method: 'POST',
@@ -146,6 +147,7 @@ export function useQRAuth(options?: {
           
           onAuthenticated?.(tokenData.token);
           break;
+        }
 
         case QRAuthSessionStatus.EXPIRED:
         case QRAuthSessionStatus.CANCELLED:

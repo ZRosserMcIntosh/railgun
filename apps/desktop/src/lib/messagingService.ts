@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Rail Gun - Messaging Service
  *

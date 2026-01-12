@@ -25,6 +25,10 @@
  * ```
  */
 
+import { createLogger } from '../lib/logger';
+
+const logger = createLogger('Crypto');
+
 import type {
   RailGunCrypto,
   EncryptedMessage,
@@ -55,7 +59,7 @@ class ElectronCryptoImpl implements RailGunCrypto {
     
     // If Signal native module isn't available, we need to signal fallback
     if (!result.success && result.useSimpleCrypto) {
-      console.warn('[ElectronCrypto] Signal not available, using SimpleCrypto fallback');
+      logger.warn('Signal not available, using SimpleCrypto fallback');
       throw new Error('USE_SIMPLE_CRYPTO');
     }
     
@@ -64,7 +68,7 @@ class ElectronCryptoImpl implements RailGunCrypto {
     }
     
     this.initialized = true;
-    console.log('[ElectronCrypto] Initialized via IPC');
+    logger.debug('Initialized via IPC');
   }
 
   isInitialized(): boolean {
@@ -108,13 +112,13 @@ class ElectronCryptoImpl implements RailGunCrypto {
 
   async generateMorePreKeys(_count: number): Promise<Array<{ keyId: number; publicKey: string }>> {
     // TODO: Implement via IPC
-    console.warn('[ElectronCrypto] generateMorePreKeys not yet implemented');
+    logger.warn('generateMorePreKeys not yet implemented');
     return [];
   }
 
   async ensureDmSession(_peerUserId: string, _peerPreKeyBundle?: PreKeyBundleFromServer): Promise<void> {
     // TODO: Implement full session management via IPC
-    console.log('[ElectronCrypto] ensureDmSession');
+    logger.debug('ensureDmSession');
   }
 
   async hasDmSession(_peerUserId: string): Promise<boolean> {
@@ -133,12 +137,12 @@ class ElectronCryptoImpl implements RailGunCrypto {
 
   async ensureChannelSession(channelId: string, _memberUserIds: string[]): Promise<void> {
     // TODO: Implement channel encryption via IPC
-    console.log('[ElectronCrypto] ensureChannelSession:', channelId);
+    logger.debug('ensureChannelSession:', channelId);
   }
 
   async encryptChannel(channelId: string, plaintext: string): Promise<EncryptedChannelMessage> {
     // TODO: Implement via IPC - for now return plaintext marker
-    console.warn('[ElectronCrypto] Channel encryption not yet implemented');
+    logger.warn('Channel encryption not yet implemented');
     return {
       ciphertext: Buffer.from(plaintext).toString('base64'),
       senderDeviceId: 1,
@@ -221,10 +225,10 @@ async function checkSignalAvailable(): Promise<boolean> {
   if (!isElectronWithCrypto()) return false;
   try {
     const available = await window.electronAPI.crypto.isSignalAvailable();
-    console.log('[Crypto] Signal native module available:', available);
+    logger.debug('Signal native module available:', available);
     return available;
   } catch (err) {
-    console.warn('[Crypto] Failed to check Signal availability:', err);
+    logger.warn('Failed to check Signal availability:', err);
     return false;
   }
 }
@@ -243,11 +247,11 @@ export function getCrypto(): RailGunCrypto {
     // 2. Signal fallback was requested, or  
     // 3. Running in Electron but Signal unavailable
     if (!isElectronWithCrypto() || useSimpleCryptoFallback) {
-      console.log('[Crypto] Using SimpleCrypto (libsodium sealed boxes)');
+      logger.debug('Using SimpleCrypto (libsodium sealed boxes)');
       cryptoInstance = getSimpleCrypto() as unknown as RailGunCrypto;
     } else {
       // This path is only used when Signal IS available in Electron
-      console.log('[Crypto] Using Electron IPC-based crypto (Signal Protocol)');
+      logger.debug('Using Electron IPC-based crypto (Signal Protocol)');
       cryptoInstance = new ElectronCryptoImpl();
     }
   }
@@ -262,7 +266,7 @@ export async function initCrypto(): Promise<RailGunCrypto> {
   if (isElectronWithCrypto()) {
     const signalAvailable = await checkSignalAvailable();
     if (!signalAvailable) {
-      console.warn('[Crypto] Signal native module not available, using SimpleCrypto');
+      logger.warn('Signal native module not available, using SimpleCrypto');
       useSimpleCryptoFallback = true;
       cryptoInstance = null; // Reset to use SimpleCrypto
     }
@@ -274,7 +278,7 @@ export async function initCrypto(): Promise<RailGunCrypto> {
     await crypto.init();
   } catch (err) {
     if (err instanceof Error && err.message === 'USE_SIMPLE_CRYPTO') {
-      console.warn('[Crypto] Falling back to SimpleCrypto');
+      logger.warn('Falling back to SimpleCrypto');
       useSimpleCryptoFallback = true;
       cryptoInstance = null;
       const fallback = getCrypto();

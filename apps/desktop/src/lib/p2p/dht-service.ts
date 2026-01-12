@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * DHT (Distributed Hash Table) Service
  *
@@ -226,7 +227,7 @@ export class DHTService {
     if (this.expirationInterval) clearInterval(this.expirationInterval);
     
     // Cancel pending requests
-    for (const [_requestId, pending] of this.pendingRequests) {
+    for (const [, pending] of this.pendingRequests) {
       clearTimeout(pending.timeout);
       pending.reject(new Error('DHT shutting down'));
     }
@@ -350,7 +351,8 @@ export class DHTService {
       });
     }
     
-    // Iterative lookup
+    // Iterative lookup - continues until no more peers to query
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       // Get unqueried peers closest to target
       const toQuery = Array.from(found.values())
@@ -641,7 +643,7 @@ export class DHTService {
       case 'PONG':
       case 'FIND_NODE_REPLY':
       case 'FIND_VALUE_REPLY':
-      case 'STORE_ACK':
+      case 'STORE_ACK': {
         const pending = this.pendingRequests.get(message.requestId);
         if (pending) {
           clearTimeout(pending.timeout);
@@ -649,6 +651,7 @@ export class DHTService {
           pending.resolve(message);
         }
         break;
+      }
     }
     
     return null;
@@ -752,7 +755,7 @@ export class DHTService {
 
   private async republishRecords(): Promise<void> {
     // Republish our own records
-    for (const [_key, record] of this.localRecords) {
+    for (const [, record] of this.localRecords) {
       if (record.signerPeerId === this.config.localPeerId) {
         await this.store(record.keyType, record.key, record.data, record.ttl);
       }

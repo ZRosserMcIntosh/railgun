@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * libp2p Transport Implementation
  * 

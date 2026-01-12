@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Analytics Client for Rail Gun Desktop (Renderer Process)
  * 
