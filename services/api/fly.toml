@@ -1,0 +1,41 @@
+# fly.toml - Fly.io configuration for Rail Gun API
+# Run `fly launch` in services/api to deploy
+
+app = "railgun-api"
+primary_region = "ord"  # Chicago - good latency for US
+
+[build]
+  dockerfile = "Dockerfile"
+  # Build from repo root to access monorepo packages
+  [build.args]
+    # No build args needed - Dockerfile handles it
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3001"
+
+[http_service]
+  internal_port = 3001
+  force_https = true
+  auto_stop_machines = false  # Keep running for WebSocket connections
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 1000
+    soft_limit = 500
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
+
+# Health check
+[checks]
+  [checks.health]
+    port = 3001
+    type = "http"
+    interval = "30s"
+    timeout = "5s"
+    path = "/health"

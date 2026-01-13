@@ -1,8 +1,8 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-// Use real mediasoup module (native build)
-import * as mediasoup from 'mediasoup';
-import type { types as mediasoupTypes } from 'mediasoup';
+// Use stub types when mediasoup is not installed
+import * as mediasoup from './mediasoup-types';
+import type { types as mediasoupTypes } from './mediasoup-types';
 
 import { VoiceRoomService } from './voice-room.service';
 import {

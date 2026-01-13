@@ -438,16 +438,20 @@ export class GroupsController {
 
 @Controller('stripe/connect')
 export class StripeConnectController {
-  private readonly stripe: Stripe;
+  private readonly stripe: Stripe | null = null;
+  private readonly isStripeConfigured: boolean = false;
 
   constructor(
     private readonly stripeConnectService: StripeConnectService,
     private readonly configService: ConfigService,
   ) {
-    this.stripe = new Stripe(
-      this.configService.get<string>('STRIPE_SECRET_KEY') || '',
-      { apiVersion: '2024-11-20.acacia' as Stripe.LatestApiVersion },
-    );
+    const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
+    if (stripeKey) {
+      this.stripe = new Stripe(stripeKey, {
+        apiVersion: '2024-11-20.acacia' as Stripe.LatestApiVersion,
+      });
+      this.isStripeConfigured = true;
+    }
   }
 
   /**
@@ -544,6 +548,10 @@ export class StripeConnectController {
     @Headers('stripe-signature') signature: string,
     @Request() req: RawBodyRequest<Request>,
   ) {
+    if (!this.isStripeConfigured || !this.stripe) {
+      throw new BadRequestException('Stripe is not configured');
+    }
+    
     const webhookSecret = this.configService.get<string>('STRIPE_CONNECT_WEBHOOK_SECRET');
     
     if (!webhookSecret) {

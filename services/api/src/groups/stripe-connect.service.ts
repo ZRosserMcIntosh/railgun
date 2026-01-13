@@ -15,7 +15,8 @@ import { UserEntity } from '../users/user.entity';
 @Injectable()
 export class StripeConnectService {
   private readonly logger = new Logger(StripeConnectService.name);
-  private readonly stripe: Stripe;
+  private readonly stripe: Stripe | null = null;
+  private readonly isConfigured: boolean = false;
 
   constructor(
     @InjectRepository(StripeConnectAccountEntity)
@@ -24,16 +25,29 @@ export class StripeConnectService {
     private readonly userRepository: Repository<UserEntity>,
     private readonly configService: ConfigService,
   ) {
-    this.stripe = new Stripe(
-      this.configService.get<string>('STRIPE_SECRET_KEY') || '',
-      { apiVersion: '2024-11-20.acacia' as Stripe.LatestApiVersion },
-    );
+    const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
+    if (stripeKey) {
+      this.stripe = new Stripe(stripeKey, {
+        apiVersion: '2024-11-20.acacia' as Stripe.LatestApiVersion,
+      });
+      this.isConfigured = true;
+    } else {
+      this.logger.warn('STRIPE_SECRET_KEY not set - Stripe Connect features disabled');
+    }
+  }
+
+  private ensureConfigured(): void {
+    if (!this.isConfigured || !this.stripe) {
+      throw new BadRequestException('Stripe Connect is not configured');
+    }
   }
 
   /**
    * Get the OAuth URL for connecting a Stripe account.
    */
   async getConnectUrl(userId: string): Promise<string> {
+    this.ensureConfigured();
+    
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
@@ -82,9 +96,10 @@ export class StripeConnectService {
     }
 
     const userId = stateData.userId;
+    this.ensureConfigured();
 
     // Exchange code for access token
-    const response = await this.stripe.oauth.token({
+    const response = await this.stripe!.oauth.token({
       grant_type: 'authorization_code',
       code,
     });
@@ -95,7 +110,7 @@ export class StripeConnectService {
     }
 
     // Get account details
-    const account = await this.stripe.accounts.retrieve(stripeAccountId);
+    const account = await this.stripe!.accounts.retrieve(stripeAccountId);
 
     // Create or update our record
     let connectAccount = await this.stripeConnectRepository.findOne({
@@ -143,7 +158,8 @@ export class StripeConnectService {
 
     // Refresh account status from Stripe
     try {
-      const stripeAccount = await this.stripe.accounts.retrieve(account.stripeAccountId);
+      this.ensureConfigured();
+      const stripeAccount = await this.stripe!.accounts.retrieve(account.stripeAccountId);
       
       account.chargesEnabled = stripeAccount.charges_enabled || false;
       account.payoutsEnabled = stripeAccount.payouts_enabled || false;
@@ -158,7 +174,8 @@ export class StripeConnectService {
     let dashboardUrl: string | undefined;
     if (account.isReady()) {
       try {
-        const loginLink = await this.stripe.accounts.createLoginLink(
+        this.ensureConfigured();
+        const loginLink = await this.stripe!.accounts.createLoginLink(
           account.stripeAccountId
         );
         dashboardUrl = loginLink.url;
@@ -178,6 +195,8 @@ export class StripeConnectService {
    * Get onboarding URL for incomplete accounts.
    */
   async getOnboardingUrl(userId: string): Promise<string> {
+    this.ensureConfigured();
+    
     const account = await this.stripeConnectRepository.findOne({
       where: { userId },
     });
@@ -188,7 +207,7 @@ export class StripeConnectService {
 
     const baseUrl = this.configService.get<string>('APP_URL') || 'https://railgun.app';
 
-    const accountLink = await this.stripe.accountLinks.create({
+    const accountLink = await this.stripe!.accountLinks.create({
       account: account.stripeAccountId,
       refresh_url: `${baseUrl}/settings/payments?refresh=true`,
       return_url: `${baseUrl}/settings/payments?success=true`,
@@ -212,9 +231,10 @@ export class StripeConnectService {
 
     // Revoke access (optional - the account still exists, we just remove our link)
     try {
+      this.ensureConfigured();
       const clientId = this.configService.get<string>('STRIPE_CONNECT_CLIENT_ID');
       if (clientId) {
-        await this.stripe.oauth.deauthorize({
+        await this.stripe!.oauth.deauthorize({
           client_id: clientId,
           stripe_user_id: account.stripeAccountId,
         });

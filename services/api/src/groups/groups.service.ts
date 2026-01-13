@@ -50,7 +50,8 @@ export interface JoinGroupDto {
 @Injectable()
 export class GroupsService {
   private readonly logger = new Logger(GroupsService.name);
-  private readonly stripe: Stripe;
+  private readonly stripe: Stripe | null = null;
+  private readonly isStripeConfigured: boolean = false;
   private readonly platformFeePercent = 10; // 10% commission
 
   constructor(
@@ -69,10 +70,21 @@ export class GroupsService {
     private readonly configService: ConfigService,
     private readonly communitiesService: CommunitiesService,
   ) {
-    this.stripe = new Stripe(
-      this.configService.get<string>('STRIPE_SECRET_KEY') || '',
-      { apiVersion: '2024-11-20.acacia' as Stripe.LatestApiVersion },
-    );
+    const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
+    if (stripeKey) {
+      this.stripe = new Stripe(stripeKey, {
+        apiVersion: '2024-11-20.acacia' as Stripe.LatestApiVersion,
+      });
+      this.isStripeConfigured = true;
+    } else {
+      this.logger.warn('STRIPE_SECRET_KEY not set - paid groups features disabled');
+    }
+  }
+
+  private ensureStripeConfigured(): void {
+    if (!this.isStripeConfigured || !this.stripe) {
+      throw new BadRequestException('Stripe is not configured - paid groups are disabled');
+    }
   }
 
   // ============================================================================
@@ -438,8 +450,11 @@ export class GroupsService {
       });
     }
 
+    // Ensure Stripe is configured for paid groups
+    this.ensureStripeConfigured();
+
     // Create Stripe Product and Price
-    const stripeProduct = await this.stripe.products.create(
+    const stripeProduct = await this.stripe!.products.create(
       {
         name: `${community.name} Membership`,
         description: community.description || `Access to ${community.name}`,
@@ -451,7 +466,7 @@ export class GroupsService {
       { stripeAccount: stripeAccount.stripeAccountId },
     );
 
-    const stripePrice = await this.stripe.prices.create(
+    const stripePrice = await this.stripe!.prices.create(
       {
         product: stripeProduct.id,
         unit_amount: dto.priceCents,
@@ -532,12 +547,14 @@ export class GroupsService {
       throw new BadRequestException('Payment not configured for this group');
     }
 
+    this.ensureStripeConfigured();
+    
     const baseUrl = this.configService.get<string>('APP_URL') || 'https://railgun.app';
     
     // Calculate application fee (10%)
     const applicationFeePercent = this.platformFeePercent;
 
-    const session = await this.stripe.checkout.sessions.create({
+    const session = await this.stripe!.checkout.sessions.create({
       mode: plan.interval === BillingInterval.ONE_TIME ? 'payment' : 'subscription',
       line_items: [
         {

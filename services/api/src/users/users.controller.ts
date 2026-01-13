@@ -4,15 +4,7 @@ import {
   Param,
   Query,
   UseGuards,
-  Not    if (!searchQuery || searchQuery.length < 2) {
-      throw new BadRequestException('Query must be at least 2 characters');
-    }
-
-    if (searchQuery.length > 32) {
-      throw new BadRequestException('Query too long');
-    }
-
-    const users = await this.usersService.searchByUsername(searchQuery, 10);ption,
+  NotFoundException,
   BadRequestException,
   Request,
 } from '@nestjs/common';
@@ -76,11 +68,11 @@ export class UsersController {
       throw new BadRequestException('Query must be at least 2 characters');
     }
 
-    if (query.length > 32) {
+    if (searchQuery.length > 32) {
       throw new BadRequestException('Query too long');
     }
 
-    const users = await this.usersService.searchByUsername(query, 10);
+    const users = await this.usersService.searchByUsername(searchQuery, 10);
     
     return {
       users: users.map((user) => ({

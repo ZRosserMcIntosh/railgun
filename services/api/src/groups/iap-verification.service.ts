@@ -160,7 +160,7 @@ export class IapVerificationService {
         };
       }
 
-      const data = await response.json();
+      const data = await response.json() as { signedTransactionInfo: string };
       const signedTransaction = data.signedTransactionInfo;
       
       // Decode and verify the JWS
@@ -299,7 +299,7 @@ export class IapVerificationService {
         };
       }
 
-      const purchase: GoogleSubscriptionPurchase = await response.json();
+      const purchase = await response.json() as GoogleSubscriptionPurchase;
       
       // Check if subscription is active
       const expiryTime = new Date(parseInt(purchase.expiryTimeMillis, 10));
@@ -411,7 +411,7 @@ export class IapVerificationService {
         throw new UnauthorizedException('Failed to get Google access token');
       }
 
-      const data = await response.json();
+      const data = await response.json() as { access_token: string; expires_in: number };
       
       // Cache the token
       this.googleAccessToken = data.access_token;

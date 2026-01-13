@@ -18,6 +18,9 @@ import { CommunityEntity } from '../communities/community.entity';
 import { MemberEntity } from '../communities/member.entity';
 import { RoleEntity } from '../communities/role.entity';
 
+// Import UserEntity for StripeConnectService
+import { UserEntity } from '../users/user.entity';
+
 // Import CommunitiesModule for service access
 import { CommunitiesModule } from '../communities/communities.module';
 
@@ -35,6 +38,8 @@ import { CommunitiesModule } from '../communities/communities.module';
       CommunityEntity,
       MemberEntity,
       RoleEntity,
+      // User entity for StripeConnectService
+      UserEntity,
     ]),
   ],
   controllers: [GroupsController, StripeConnectController],

@@ -5,8 +5,8 @@
  * Matches the spec in docs/VOICE_CHAT.md
  */
 
-// Use real mediasoup types
-import type { types as mediasoupTypes } from 'mediasoup';
+// Use stub types when mediasoup is not installed
+import type { types as mediasoupTypes } from './mediasoup-types';
 
 // ============================================================================
 // Session & Ownership

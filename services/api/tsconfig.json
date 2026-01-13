@@ -17,7 +17,8 @@
     "node_modules",
     "dist",
     "**/*.test.ts",
-    "**/*.spec.ts"
+    "**/*.spec.ts",
+    "src/voice/**/*"
   ],
   "references": [
     { "path": "../../packages/shared" }

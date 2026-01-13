@@ -68,14 +68,14 @@ USER railgun
 
 # Environment
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3001
 
 # Expose port
-EXPOSE 3000
+EXPOSE 3001
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+# Health check - API uses /api/v1 prefix
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/v1/health || exit 1
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]

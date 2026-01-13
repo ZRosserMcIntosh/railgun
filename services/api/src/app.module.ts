@@ -12,7 +12,8 @@ import { CryptoModule } from './crypto/crypto.module';
 import { RedisModule } from './redis/redis.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { BillingModule } from './billing/billing.module';
-import { VoiceModule } from './voice/voice.module';
+// VoiceModule disabled - requires mediasoup native module
+// import { VoiceModule } from './voice/voice.module';
 import { GroupsModule } from './groups/groups.module';
 
 @Module({
@@ -42,8 +43,8 @@ import { GroupsModule } from './groups/groups.module';
         const baseConfig = {
           type: 'postgres' as const,
           entities: [__dirname + '/**/*.entity{.ts,.js}'],
-          // NEVER use synchronize in production - use migrations
-          synchronize: isDevelopment && !databaseUrl,
+          // Tables created - disable synchronize for safety
+          synchronize: false,
           logging: isDevelopment ? ['error' as const, 'warn' as const, 'migration' as const] : ['error' as const],
           // Connection pool settings
           extra: {
@@ -89,7 +90,7 @@ import { GroupsModule } from './groups/groups.module';
     CryptoModule,
     AnalyticsModule,
     BillingModule,
-    VoiceModule,
+    // VoiceModule disabled - requires mediasoup native module
     GroupsModule,
   ],
 })

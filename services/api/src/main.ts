@@ -61,13 +61,10 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, curl, etc.) only in dev
+      // Allow requests with no origin for health checks and mobile apps
+      // This is safe because CORS only protects browser requests
       if (!origin) {
-        if (!isProduction) {
-          callback(null, true);
-        } else {
-          callback(new Error('CORS: Origin required in production'));
-        }
+        callback(null, true);
         return;
       }
       
