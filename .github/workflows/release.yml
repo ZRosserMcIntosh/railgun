@@ -456,7 +456,7 @@ jobs:
           EOF
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: Rail Gun v${{ needs.prepare.outputs.version }}
           tag_name: v${{ needs.prepare.outputs.version }}
@@ -520,7 +520,7 @@ jobs:
 
       # Option 3: GitHub Pages (for simple setup - uses release artifacts)
       - name: Upload manifest to GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.prepare.outputs.version }}
           files: |
