@@ -300,6 +300,18 @@ class ApiClient {
     }>('/keys/devices');
   }
 
+  /**
+   * Get all active devices for a specific user (for DM encryption).
+   */
+  async getUserDevices(userId: string) {
+    return this.request<{
+      devices: Array<{
+        deviceId: number;
+        deviceType: string;
+      }>;
+    }>(`/keys/devices/${userId}`);
+  }
+
   // ==================== Messages ====================
 
   async sendMessage(dto: {
@@ -551,13 +563,14 @@ class ApiClient {
   }
 
   /**
-   * Send sender key distribution to a specific user via the server.
+   * Send sender key distribution to a specific user/device via the server.
    * The server queues this for delivery to the recipient's device.
    */
   async sendSenderKeyDistribution(
     channelId: string,
     recipientUserId: string,
-    distribution: string // base64 encoded
+    distribution: string, // base64 encoded
+    recipientDeviceId?: number // Optional: target specific device
   ) {
     return this.request<{ success: boolean }>(
       `/channels/${channelId}/sender-key`,
@@ -565,6 +578,7 @@ class ApiClient {
         method: 'POST',
         body: JSON.stringify({
           recipientUserId,
+          recipientDeviceId,
           distribution,
         }),
       }
@@ -574,7 +588,10 @@ class ApiClient {
   /**
    * Get pending sender key distributions for the current user.
    */
-  async getPendingSenderKeys(channelId: string) {
+  async getPendingSenderKeys(channelId: string, deviceId?: number) {
+    const url = deviceId
+      ? `/channels/${channelId}/sender-key?deviceId=${deviceId}`
+      : `/channels/${channelId}/sender-key`;
     return this.request<{
       distributions: Array<{
         senderUserId: string;
@@ -582,7 +599,7 @@ class ApiClient {
         distribution: string; // base64
         createdAt: string;
       }>;
-    }>(`/channels/${channelId}/sender-key`);
+    }>(url);
   }
 
   // ==================== Users ====================

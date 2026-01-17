@@ -1,6 +1,6 @@
 # Rail Gun Deployment Guide
 
-Last updated: December 28, 2025
+Last updated: January 17, 2026
 
 Complete guide for deploying Rail Gun to production, including backend hosting, release management, and distribution.
 
@@ -9,12 +9,12 @@ Complete guide for deploying Rail Gun to production, including backend hosting, 
 ## Table of Contents
 
 1. [Deployment Overview](#deployment-overview)
-2. [Backend Deployment](#backend-deployment)
-3. [Release Process](#release-process)
-4. [Website Deployment](#website-deployment)
-5. [Environment Variables](#environment-variables)
-6. [Secure Hosting Options](#secure-hosting-options)
-7. [Auto-Update System](#auto-update-system)
+2. [Backend Deployment (Fly.io)](#backend-deployment-flyio)
+3. [Database Setup](#database-setup)
+4. [Release Process](#release-process)
+5. [Website Deployment](#website-deployment)
+6. [Environment Variables](#environment-variables)
+7. [Monitoring](#monitoring)
 
 ---
 
@@ -22,19 +22,19 @@ Complete guide for deploying Rail Gun to production, including backend hosting, 
 
 ### Components to Deploy
 
-| Component | Technology | Hosting Options |
-|-----------|------------|-----------------|
-| **API Server** | NestJS | Railway, Render, Fly.io, AWS |
-| **Database** | PostgreSQL 15+ | Supabase, Railway, RDS |
-| **Cache** | Redis 7+ | Upstash, Railway Redis |
+| Component | Technology | Hosting |
+|-----------|------------|---------|
+| **API Server** | NestJS | Fly.io |
+| **Database** | PostgreSQL 15+ | Fly Postgres or Supabase |
+| **Cache** | Redis 7+ | Upstash Redis (via Fly.io) |
 | **Marketing Site** | Next.js | Vercel |
 | **Desktop Installers** | Electron | GitHub Releases |
 
 ### Production Checklist
 
-- [ ] Backend API deployed and accessible
-- [ ] Database with SSL enabled
-- [ ] Redis for sessions/rate limiting
+- [ ] Backend API deployed on Fly.io
+- [ ] PostgreSQL database attached
+- [ ] Redis for sessions/rate limiting  
 - [ ] GitHub release with signed installers
 - [ ] Website pointing to real download URLs
 - [ ] Environment variables configured
@@ -42,62 +42,110 @@ Complete guide for deploying Rail Gun to production, including backend hosting, 
 
 ---
 
-## Backend Deployment
+## Backend Deployment (Fly.io)
 
-### Option A: Railway (Recommended - Easiest)
+Fly.io is the primary deployment target for Rail Gun.
 
-1. Go to [railway.app](https://railway.app) and sign in with GitHub
-2. New Project → Deploy from GitHub repo
-3. Add **PostgreSQL** service (click + New → Database → PostgreSQL)
-4. Add **Redis** service (click + New → Database → Redis)
-5. Configure environment variables (see [Environment Variables](#environment-variables))
-6. Set root directory to `services/api`
-7. Deploy
+### Prerequisites
 
-**Build settings:**
-- Build command: `pnpm install && pnpm build`
-- Start command: `pnpm start:prod`
+```bash
+# Install Fly CLI
+curl -L https://fly.io/install.sh | sh
 
-### Option B: Render.com (Free Tier)
+# Login
+flyctl auth login
+```
 
-1. Create a **Web Service** from your repo
-2. Root directory: `services/api`
-3. Build command: `pnpm install && pnpm build`
-4. Start command: `pnpm start:prod`
-5. Add PostgreSQL database (free tier available)
-6. Note: Redis requires paid plan or external Upstash
-
-### Option C: Fly.io (More Control)
+### Deploy API
 
 ```bash
 cd services/api
 
-# Initialize Fly app
-fly launch
+# First time: Launch app
+flyctl launch --name railgun-api
 
-# Create PostgreSQL
-fly postgres create --name railgun-db
-fly postgres attach railgun-db
-
-# Create Redis (Upstash integration)
-fly redis create
-
-# Set secrets
-fly secrets set JWT_SECRET="$(openssl rand -base64 64)"
-fly secrets set DATABASE_URL="..."
-fly secrets set REDIS_URL="..."
-
-# Deploy
-fly deploy
+# Subsequent deploys
+flyctl deploy
 ```
 
-### Option D: Docker (Self-Hosted)
+### Create PostgreSQL Database
 
-```dockerfile
-# services/api/Dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json pnpm-lock.yaml ./
+```bash
+# Create managed Postgres
+flyctl postgres create --name railgun-db --region iad
+
+# Attach to app
+flyctl postgres attach railgun-db --app railgun-api
+```
+
+### Create Redis (Upstash)
+
+```bash
+# Create Upstash Redis via Fly.io
+flyctl redis create --name railgun-redis
+
+# Or use external Upstash account for more control
+```
+
+### Set Secrets
+
+```bash
+flyctl secrets set \
+  JWT_SECRET="$(openssl rand -base64 64)" \
+  RECOVERY_CODE_SECRET="$(openssl rand -base64 32)" \
+  CORS_ORIGINS="https://railgun.app,https://www.railgun.app" \
+  --app railgun-api
+```
+
+### Useful Commands
+
+```bash
+flyctl logs -a railgun-api      # View logs
+flyctl status -a railgun-api    # Check status
+flyctl ssh console -a railgun-api # SSH into container
+flyctl secrets list -a railgun-api # List secrets
+flyctl scale count 2 -a railgun-api # Scale to 2 instances
+```
+
+### Quick Deploy Script
+
+Use the provided deploy script:
+
+```bash
+cd infra
+./deploy.sh api
+```
+
+---
+
+## Database Setup
+
+### Fly Postgres (Recommended)
+
+Fly Postgres provides managed PostgreSQL with automatic backups.
+
+```bash
+# Create cluster
+flyctl postgres create --name railgun-db --region iad
+
+# Connect (for debugging)
+flyctl postgres connect -a railgun-db
+
+# Run migrations
+flyctl ssh console -a railgun-api -C "pnpm migration:run"
+```
+
+### Alternative: Supabase
+
+For a fully managed solution with dashboard:
+
+1. Create project at supabase.com
+2. Get connection string from Settings > Database
+3. Set `DATABASE_URL` secret in Fly.io
+
+---
+
+## Release Process
 RUN npm install -g pnpm && pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build

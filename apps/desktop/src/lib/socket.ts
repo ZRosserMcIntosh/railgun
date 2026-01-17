@@ -6,6 +6,7 @@ import { useChatStore } from '../stores/chatStore';
 import { useAuthStore } from '../stores/authStore';
 import type { ServerMessage } from './api';
 import { config } from './env';
+import { getCrypto } from '../crypto';
 
 /**
  * WebSocket URL - Uses environment configuration.
@@ -13,11 +14,17 @@ import { config } from './env';
  */
 const WS_URL = config.wsUrl;
 
-/** Encrypted message payload to send to server */
+/** Encrypted message payload to send to server (V2 multi-device) */
 interface EncryptedMessagePayload {
   channelId?: string;
   recipientId?: string;
-  encryptedEnvelope: string;
+  /** V1: Single envelope for channels or single-device DMs */
+  encryptedEnvelope?: string;
+  /** V2: Per-device envelopes for multi-device DMs */
+  deviceEnvelopes?: Array<{
+    deviceId: number;
+    encryptedEnvelope: string;
+  }>;
   clientNonce: string;
   protocolVersion: number;
   replyToId?: string;
@@ -109,7 +116,10 @@ class SocketClient {
       }
 
       this.socket = io(WS_URL, {
-        auth: { token },
+        auth: { 
+          token,
+          deviceId: getCrypto().isInitialized() ? getCrypto().getDeviceId() : undefined,
+        },
         transports: ['websocket'],
         reconnection: true,
         reconnectionAttempts: Infinity,

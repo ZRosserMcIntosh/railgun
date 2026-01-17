@@ -56,11 +56,27 @@ export class CryptoService {
 
   /**
    * Register a new device with its Signal protocol keys.
+   * Supports server-assigned device IDs when client passes deviceId=0.
    */
   async registerDevice(userId: string, dto: RegisterKeysDto): Promise<DeviceEntity> {
+    let assignedDeviceId = dto.deviceId;
+
+    // Server-assigned device ID when client passes 0
+    if (dto.deviceId === 0) {
+      // Find the highest existing deviceId for this user
+      const existingDevices = await this.deviceRepository.find({
+        where: { userId },
+        order: { deviceId: 'DESC' },
+        take: 1,
+      });
+      assignedDeviceId = existingDevices.length > 0 
+        ? existingDevices[0].deviceId + 1 
+        : 1;
+    }
+
     // Check if device already exists
     let device = await this.deviceRepository.findOne({
-      where: { userId, deviceId: dto.deviceId },
+      where: { userId, deviceId: assignedDeviceId },
     });
 
     if (device) {
@@ -73,7 +89,7 @@ export class CryptoService {
       // Create new device
       device = this.deviceRepository.create({
         userId,
-        deviceId: dto.deviceId,
+        deviceId: assignedDeviceId,
         deviceType: dto.deviceType,
         deviceName: dto.deviceName,
         lastActiveAt: new Date(),
@@ -269,6 +285,15 @@ export class CryptoService {
     return this.deviceRepository.find({
       where: { userId, isActive: true },
       order: { lastActiveAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Get a specific device by user ID and device ID.
+   */
+  async getDeviceByUserAndDeviceId(userId: string, deviceId: number): Promise<DeviceEntity | null> {
+    return this.deviceRepository.findOne({
+      where: { userId, deviceId, isActive: true },
     });
   }
 

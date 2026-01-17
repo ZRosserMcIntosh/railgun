@@ -9,6 +9,8 @@ export interface ChannelMemberDto {
   userId: string;
   username: string;
   displayName: string;
+  // Note: deviceId is deprecated for multi-device support.
+  // Clients should call GET /keys/devices/:userId to get all devices.
   deviceId: number;
 }
 
@@ -82,6 +84,7 @@ export class ChannelCryptoService {
 
   /**
    * Store a sender key distribution for a recipient.
+   * Supports per-device distribution for multi-device.
    */
   async storeSenderKeyDistribution(
     channelId: string,
@@ -89,6 +92,7 @@ export class ChannelCryptoService {
     senderDeviceId: number,
     recipientUserId: string,
     distribution: string,
+    recipientDeviceId?: number, // Optional: target specific device
   ): Promise<void> {
     // Verify channel exists
     const channel = await this.channelRepo.findOne({
@@ -123,11 +127,16 @@ export class ChannelCryptoService {
     }
 
     // Remove any existing distribution from this sender to this recipient for this channel
-    await this.senderKeyRepo.delete({
+    // If recipientDeviceId specified, only delete for that device
+    const deleteQuery: Record<string, unknown> = {
       channelId,
       senderUserId,
       recipientUserId,
-    });
+    };
+    if (recipientDeviceId !== undefined) {
+      deleteQuery.recipientDeviceId = recipientDeviceId;
+    }
+    await this.senderKeyRepo.delete(deleteQuery);
 
     // Store new distribution
     const entity = this.senderKeyRepo.create({
@@ -135,6 +144,7 @@ export class ChannelCryptoService {
       senderUserId,
       senderDeviceId,
       recipientUserId,
+      recipientDeviceId: recipientDeviceId ?? 0, // 0 means "all devices"
       distribution,
     });
 
@@ -142,26 +152,54 @@ export class ChannelCryptoService {
   }
 
   /**
-   * Get pending sender key distributions for a user in a channel.
+   * Get pending sender key distributions for a user's device in a channel.
+   * Returns distributions targeted at this specific device OR all devices (recipientDeviceId=0).
    */
   async getPendingSenderKeys(
     channelId: string,
     recipientUserId: string,
+    recipientDeviceId?: number,
   ): Promise<SenderKeyDistributionDto[]> {
-    const distributions = await this.senderKeyRepo.find({
-      where: {
-        channelId,
-        recipientUserId,
-      },
-      order: { createdAt: 'ASC' },
-    });
+    // If deviceId provided, get distributions for that device OR for all devices (0)
+    const whereClause: Record<string, unknown> = {
+      channelId,
+      recipientUserId,
+    };
 
-    // Delete distributions after fetching (one-time delivery)
-    if (distributions.length > 0) {
-      await this.senderKeyRepo.delete({
-        channelId,
-        recipientUserId,
+    let distributions: SenderKeyDistributionEntity[];
+
+    if (recipientDeviceId !== undefined && recipientDeviceId > 0) {
+      // Get distributions for this specific device OR broadcasts (deviceId=0)
+      distributions = await this.senderKeyRepo
+        .createQueryBuilder('dist')
+        .where('dist.channelId = :channelId', { channelId })
+        .andWhere('dist.recipientUserId = :recipientUserId', { recipientUserId })
+        .andWhere(
+          '(dist.recipientDeviceId = :deviceId OR dist.recipientDeviceId = 0)',
+          { deviceId: recipientDeviceId },
+        )
+        .orderBy('dist.createdAt', 'ASC')
+        .getMany();
+
+      // Delete only the fetched distributions
+      if (distributions.length > 0) {
+        const ids = distributions.map((d) => d.id);
+        await this.senderKeyRepo.delete(ids);
+      }
+    } else {
+      // Legacy behavior: get all distributions for user
+      distributions = await this.senderKeyRepo.find({
+        where: whereClause,
+        order: { createdAt: 'ASC' },
       });
+
+      // Delete distributions after fetching (one-time delivery)
+      if (distributions.length > 0) {
+        await this.senderKeyRepo.delete({
+          channelId,
+          recipientUserId,
+        });
+      }
     }
 
     return distributions.map((d) => ({

@@ -12,3 +12,4 @@ export { CreateBillingProfiles1735235000000 } from '../billing/migrations/173523
 export { CreateAuthSessions1735236000000 } from '../auth/migrations/1735236000000-CreateAuthSessions';
 export { AddAuthSessionExchangeToken1736467200000 } from './1736467200000-AddAuthSessionExchangeToken';
 export { AddGroupPoliciesAndPaidGroups1736700000000 } from '../groups/migrations/1736700000000-AddGroupPoliciesAndPaidGroups';
+export { AddPerDeviceEnvelopes1705500000000 } from './1705500000000-AddPerDeviceEnvelopes';

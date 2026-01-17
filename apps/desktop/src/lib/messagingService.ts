@@ -50,6 +50,12 @@ export interface EncryptedEnvelope {
   messageType?: 'prekey' | 'message';
 }
 
+/** Per-device envelope for V2 multi-device protocol */
+export interface DeviceEnvelopePayload {
+  deviceId: number;
+  encryptedEnvelope: string;
+}
+
 // ==================== Messaging Service ====================
 
 class MessagingService {
@@ -88,6 +94,7 @@ class MessagingService {
 
   /**
    * Register our device keys with the server.
+   * Sends deviceId: 0 for new devices to request server-assigned ID.
    */
   private async registerDeviceKeys(): Promise<void> {
     const crypto = getCrypto();
@@ -97,9 +104,13 @@ class MessagingService {
       // Get our prekey bundle
       const bundle = await crypto.getPreKeyBundle();
 
+      // Get current deviceId - if 0 or 1 (default), request server assignment
+      const currentDeviceId = crypto.getDeviceId();
+      const requestedDeviceId = currentDeviceId <= 1 ? 0 : currentDeviceId;
+
       // Register with server
       const result = await api.registerDeviceKeys({
-        deviceId: crypto.getDeviceId(),
+        deviceId: requestedDeviceId,
         deviceType: DeviceType.DESKTOP,
         deviceName: 'Desktop App',
         identityKey: bundle.identityKey,
@@ -107,6 +118,11 @@ class MessagingService {
         signedPreKey: bundle.signedPreKey,
         preKeys: bundle.preKeys,
       });
+
+      // Persist server-assigned deviceId back to crypto
+      if (result.deviceId !== currentDeviceId) {
+        await crypto.setDeviceId(result.deviceId);
+      }
 
       this._deviceId = result.deviceId;
       console.log('[MessagingService] Device keys registered, deviceId:', result.deviceId);
@@ -192,11 +208,13 @@ class MessagingService {
 
   /**
    * Get the encrypted payload for sending via WebSocket.
+   * Returns V2 format with per-device envelopes for DMs.
    */
   async prepareEncryptedPayload(options: SendMessageOptions): Promise<{
     channelId?: string;
     recipientId?: string;
-    encryptedEnvelope: string;
+    encryptedEnvelope?: string;
+    deviceEnvelopes?: DeviceEnvelopePayload[];
     clientNonce: string;
     protocolVersion: number;
     replyToId?: string;
@@ -204,24 +222,102 @@ class MessagingService {
     const { channelId, recipientId, content, replyToId } = options;
     const clientNonce = generateUUID();
 
-    let envelope: EncryptedEnvelope;
-
     if (channelId) {
-      envelope = await this.encryptChannelMessage(channelId, content);
+      // Channel messages use single envelope (sender keys)
+      const envelope = await this.encryptChannelMessage(channelId, content);
+      return {
+        channelId,
+        encryptedEnvelope: JSON.stringify(envelope),
+        clientNonce,
+        protocolVersion: PROTOCOL_VERSION,
+        replyToId,
+      };
     } else if (recipientId) {
-      envelope = await this.encryptDmMessage(recipientId, content);
+      // V2: DM messages use per-device envelopes
+      const deviceEnvelopes = await this.encryptDmForAllDevices(recipientId, content);
+      return {
+        recipientId,
+        deviceEnvelopes,
+        clientNonce,
+        protocolVersion: PROTOCOL_VERSION,
+        replyToId,
+      };
     } else {
       throw new Error('Must specify channelId or recipientId');
     }
+  }
 
-    return {
-      channelId,
-      recipientId,
-      encryptedEnvelope: JSON.stringify(envelope),
-      clientNonce,
-      protocolVersion: PROTOCOL_VERSION,
-      replyToId,
-    };
+  /**
+   * Encrypt a DM for all of the recipient's devices.
+   * Returns an array of per-device envelopes.
+   */
+  private async encryptDmForAllDevices(
+    recipientId: string,
+    plaintext: string
+  ): Promise<DeviceEnvelopePayload[]> {
+    const crypto = getCrypto();
+    const api = getApiClient();
+
+    // Fetch all active devices for the recipient
+    const { devices } = await api.getUserDevices(recipientId);
+    if (!devices.length) {
+      throw new Error(`No active devices found for user ${recipientId}`);
+    }
+
+    console.log(`[MessagingService] Encrypting for ${devices.length} device(s):`, devices.map(d => d.deviceId));
+
+    // Get prekey bundles for all devices we don't have sessions with
+    const devicesNeedingSession: number[] = [];
+    for (const device of devices) {
+      if (!(await crypto.hasDmSession(recipientId, device.deviceId))) {
+        devicesNeedingSession.push(device.deviceId);
+      }
+    }
+
+    // Fetch and create sessions for devices we don't have sessions with
+    if (devicesNeedingSession.length > 0) {
+      console.log(`[MessagingService] Need sessions for devices:`, devicesNeedingSession);
+      
+      for (const deviceId of devicesNeedingSession) {
+        try {
+          const { bundles } = await api.getPreKeyBundle(recipientId, deviceId);
+          if (bundles.length > 0) {
+            await crypto.ensureDmSession(recipientId, this.convertBundle(bundles[0]));
+          } else {
+            console.warn(`[MessagingService] No bundle for device ${deviceId}`);
+          }
+        } catch (err) {
+          console.warn(`[MessagingService] Failed to get bundle for device ${deviceId}:`, err);
+        }
+      }
+    }
+
+    // Encrypt for each device
+    const envelopes: DeviceEnvelopePayload[] = [];
+    for (const device of devices) {
+      try {
+        const encrypted = await crypto.encryptDm(recipientId, plaintext, device.deviceId);
+        envelopes.push({
+          deviceId: device.deviceId,
+          encryptedEnvelope: JSON.stringify({
+            type: 'dm' as const,
+            ciphertext: encrypted.ciphertext,
+            senderDeviceId: encrypted.senderDeviceId,
+            messageType: encrypted.type,
+            registrationId: encrypted.registrationId,
+          }),
+        });
+      } catch (err) {
+        console.warn(`[MessagingService] Failed to encrypt for device ${device.deviceId}:`, err);
+        // Continue with other devices
+      }
+    }
+
+    if (envelopes.length === 0) {
+      throw new Error(`Failed to encrypt message for any device of user ${recipientId}`);
+    }
+
+    return envelopes;
   }
 
   /**
@@ -263,7 +359,7 @@ class MessagingService {
 
   /**
    * Distribute our sender key to channel members.
-   * This sends an encrypted distribution message to each member.
+   * For multi-device support, we send to each device of each member.
    */
   private async distributeSenderKey(channelId: string, memberUserIds: string[]): Promise<void> {
     if (memberUserIds.length === 0) return;
@@ -284,18 +380,35 @@ class MessagingService {
         ? distribution 
         : btoa(String.fromCharCode(...distribution));
 
-      // Send to each member via the server
-      // The server queues these for delivery
+      // Get all devices for each member and send to each device
+      let totalDevices = 0;
       const sendPromises = memberUserIds.map(async (userId) => {
         try {
-          await api.sendSenderKeyDistribution(channelId, userId, distributionBase64);
+          // Get all active devices for this user
+          const { devices } = await api.getUserDevices(userId);
+          
+          // Send to each device
+          for (const device of devices) {
+            try {
+              await api.sendSenderKeyDistribution(channelId, userId, distributionBase64, device.deviceId);
+              totalDevices++;
+            } catch (err) {
+              console.warn(`[MessagingService] Failed to send sender key to ${userId}:${device.deviceId}:`, err);
+            }
+          }
         } catch (err) {
-          console.warn(`[MessagingService] Failed to send sender key to ${userId}:`, err);
+          // Fallback: send without deviceId (server distributes to all devices)
+          console.warn(`[MessagingService] Failed to get devices for ${userId}, sending to user:`, err);
+          try {
+            await api.sendSenderKeyDistribution(channelId, userId, distributionBase64);
+          } catch (sendErr) {
+            console.warn(`[MessagingService] Failed to send sender key to ${userId}:`, sendErr);
+          }
         }
       });
 
       await Promise.allSettled(sendPromises);
-      console.log(`[MessagingService] Distributed sender key to ${memberUserIds.length} members`);
+      console.log(`[MessagingService] Distributed sender key to ${totalDevices} device(s) across ${memberUserIds.length} member(s)`);
     } catch (err) {
       console.error('[MessagingService] Failed to distribute sender key:', err);
     }

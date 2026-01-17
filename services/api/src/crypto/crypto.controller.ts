@@ -106,6 +106,23 @@ export class CryptoController {
   }
 
   /**
+   * Get all active devices for a specific user (for DM encryption).
+   * GET /keys/devices/:userId
+   */
+  @Get('devices/:userId')
+  async getUserDevices(@Param('userId') userId: string) {
+    const devices = await this.cryptoService.getUserDevices(userId);
+    return {
+      devices: devices
+        .filter((d) => d.isActive)
+        .map((d) => ({
+          deviceId: d.deviceId,
+          deviceType: d.deviceType,
+        })),
+    };
+  }
+
+  /**
    * Deactivate a device.
    * DELETE /keys/devices/:deviceId
    */

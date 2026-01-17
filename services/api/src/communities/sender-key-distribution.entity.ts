@@ -59,6 +59,10 @@ export class SenderKeyDistributionEntity {
   @JoinColumn({ name: 'recipientUserId' })
   recipient!: UserEntity;
 
+  /** Device ID of the recipient (0 = all devices) */
+  @Column({ default: 0 })
+  recipientDeviceId!: number;
+
   /** Base64-encoded sender key distribution message */
   @Column('text')
   distribution!: string;

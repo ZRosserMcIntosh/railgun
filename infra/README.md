@@ -1,8 +1,29 @@
 # Infrastructure
 
-Docker, migrations, and CI/CD scripts for Rail Gun.
+Docker, deployment scripts, and CI/CD configuration for Rail Gun.
 
-## Quick Start (Development)
+## Deployment
+
+Rail Gun deploys to **Fly.io**. See [docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md) for full instructions.
+
+### Quick Deploy
+
+```bash
+# Deploy API to Fly.io
+./deploy.sh api
+
+# Show deployment info
+./deploy.sh info
+```
+
+### Manual Deploy
+
+```bash
+cd services/api
+flyctl deploy
+```
+
+## Local Development
 
 Start all services:
 ```bash
@@ -26,6 +47,19 @@ docker-compose up -d
 | PostgreSQL | 5432 | Primary database |
 | Redis | 6379 | Caching, sessions, pub/sub |
 | Meilisearch | 7700 | Full-text search (optional) |
+
+## Directory Structure
+
+```
+infra/
+├── deploy.sh              # Fly.io deployment script
+├── deploy-aws.sh          # Legacy AWS deployment (archived)
+├── docker-compose.yml     # Local development services
+├── start-dev.sh           # Start local dev environment
+├── stop-dev.sh            # Stop local dev environment
+├── observability/         # Monitoring configs (Grafana, etc.)
+└── terraform-aws-archive/ # Archived AWS Terraform (not used)
+```
 
 ## Production Setup
 

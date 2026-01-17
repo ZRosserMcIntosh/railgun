@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MessageEntity } from './message.entity';
+import { MessageEnvelopeEntity } from './message-envelope.entity';
 import { DmConversationEntity } from './dm-conversation.entity';
 import { MessagesService } from './messages.service';
 import { MessagesController } from './messages.controller';
@@ -12,7 +13,7 @@ import { RateLimitGuard } from '../auth/rate-limit.guard';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([MessageEntity, DmConversationEntity]),
+    TypeOrmModule.forFeature([MessageEntity, MessageEnvelopeEntity, DmConversationEntity]),
     UsersModule,
     forwardRef(() => CommunitiesModule),
   ],

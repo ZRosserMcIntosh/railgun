@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   Request,
   ForbiddenException,
@@ -21,6 +22,7 @@ interface AuthRequest extends Request {
 
 interface SendSenderKeyDto {
   recipientUserId: string;
+  recipientDeviceId?: number; // Optional: target specific device
   distribution: string;
 }
 
@@ -145,6 +147,7 @@ export class ChannelsController {
    * POST /channels/:id/sender-key
    * 
    * Used for distributing sender keys for E2E encrypted channel messages.
+   * Supports per-device distribution for multi-device.
    */
   @Post(':id/sender-key')
   async sendSenderKey(
@@ -152,8 +155,9 @@ export class ChannelsController {
     @Param('id') id: string,
     @Body() dto: SendSenderKeyDto,
   ) {
-    // Get sender's device ID (default to 1)
-    const senderDeviceId = 1; // TODO: Get from crypto service
+    // For multi-device, sender device ID should come from the request
+    // For now, use 1 as default - client should specify their device ID
+    const senderDeviceId = 1; // TODO: Get from request header or body
 
     await this.channelCryptoService.storeSenderKeyDistribution(
       id,
@@ -161,13 +165,14 @@ export class ChannelsController {
       senderDeviceId,
       dto.recipientUserId,
       dto.distribution,
+      dto.recipientDeviceId, // Pass through for per-device distribution
     );
     return { success: true };
   }
 
   /**
-   * Get pending sender key distributions for this user.
-   * GET /channels/:id/sender-key
+   * Get pending sender key distributions for this user's device.
+   * GET /channels/:id/sender-key?deviceId=1
    * 
    * Returns and deletes pending distributions (one-time fetch).
    */
@@ -175,10 +180,13 @@ export class ChannelsController {
   async getPendingSenderKeys(
     @Request() req: AuthRequest,
     @Param('id') id: string,
+    @Query('deviceId') deviceIdStr?: string,
   ) {
+    const deviceId = deviceIdStr ? parseInt(deviceIdStr, 10) : undefined;
     const distributions = await this.channelCryptoService.getPendingSenderKeys(
       id,
       req.user.id,
+      deviceId,
     );
     return { distributions };
   }

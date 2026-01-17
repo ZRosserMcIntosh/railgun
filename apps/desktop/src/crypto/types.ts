@@ -115,6 +115,12 @@ export interface RailGunCrypto {
   /** Get this device's unique identifier. */
   getDeviceId(): number;
 
+  /** 
+   * Set the device ID (called after server assigns one).
+   * This persists the server-assigned device ID locally.
+   */
+  setDeviceId(deviceId: number): Promise<void>;
+
   /** Get the registration ID for Signal protocol. */
   getRegistrationId(): number;
 
@@ -147,10 +153,25 @@ export interface RailGunCrypto {
   ensureDmSession(peerUserId: string, peerPreKeyBundle?: PreKeyBundleFromServer): Promise<void>;
 
   /** Check if we have an active session with a peer. */
-  hasDmSession(peerUserId: string): Promise<boolean>;
+  hasDmSession(peerUserId: string, deviceId?: number): Promise<boolean>;
 
-  /** Encrypt a DM. Returns envelope to send to server. */
-  encryptDm(peerUserId: string, plaintext: string): Promise<EncryptedMessage>;
+  /** 
+   * Encrypt a DM. Returns envelope to send to server.
+   * @param peerUserId The recipient's user ID
+   * @param plaintext The message plaintext
+   * @param targetDeviceId Optional target device ID. If not provided, encrypts for all known devices.
+   */
+  encryptDm(peerUserId: string, plaintext: string, targetDeviceId?: number): Promise<EncryptedMessage>;
+
+  /**
+   * Encrypt a DM for multiple devices.
+   * Returns an array of encrypted envelopes, one per target device.
+   */
+  encryptDmForDevices(
+    peerUserId: string, 
+    plaintext: string, 
+    deviceIds: number[]
+  ): Promise<Array<{ deviceId: number; envelope: EncryptedMessage }>>;
 
   /** Decrypt a received DM. Returns plaintext. */
   decryptDm(peerUserId: string, message: EncryptedMessage): Promise<string>;

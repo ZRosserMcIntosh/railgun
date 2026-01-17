@@ -15,3 +15,4 @@ export * from './qr-auth.js';
 export * from './analytics.js';
 export * from './hybrid-transport.types.js';
 export * from './groups.js';
+export * from './messaging.types.js';

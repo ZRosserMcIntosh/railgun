@@ -161,6 +161,12 @@ class DevCryptoImpl {
     return this.deviceId;
   }
 
+  async setDeviceId(deviceId: number): Promise<void> {
+    this.deviceId = deviceId;
+    // Persist to localStorage for DevCrypto
+    localStorage.setItem('railgun_device_id', String(deviceId));
+  }
+
   getRegistrationId(): number {
     return this.registrationId;
   }
@@ -401,7 +407,7 @@ class DevCryptoImpl {
 
   // ==================== SESSION MANAGEMENT ====================
 
-  async hasDmSession(userId: string): Promise<boolean> {
+  async hasDmSession(userId: string, _deviceId?: number): Promise<boolean> {
     // In DevCrypto, we have a "session" if we have the peer's identity key cached
     return this.peerKeyCache.has(userId);
   }
@@ -446,11 +452,12 @@ class DevCryptoImpl {
    * Encrypt a DM using sealed box.
    * 
    * Uses cached identity key from ensureDmSession, or accepts explicit key.
+   * @param targetDeviceId Optional - ignored in DevCrypto (no per-device sessions)
    */
   async encryptDm(
     recipientId: string,
     plaintext: string,
-    recipientPublicKey?: string
+    targetDeviceIdOrKey?: number | string
   ): Promise<{
     ciphertext: string;
     senderDeviceId: number;
@@ -458,6 +465,11 @@ class DevCryptoImpl {
     registrationId?: number;
   }> {
     this.ensureInitialized();
+    
+    // Handle both signatures: (userId, text, deviceId) and (userId, text, publicKey)
+    const recipientPublicKey = typeof targetDeviceIdOrKey === 'string' 
+      ? targetDeviceIdOrKey 
+      : undefined;
     
     // Use provided key or look up from cache
     const pubKey = recipientPublicKey || this.peerKeyCache.get(recipientId);
@@ -477,6 +489,25 @@ class DevCryptoImpl {
       type: 'message',
       registrationId: this.registrationId,
     };
+  }
+
+  /**
+   * Encrypt a DM for multiple devices.
+   * In DevCrypto, this just encrypts once (no per-device sessions).
+   */
+  async encryptDmForDevices(
+    recipientId: string,
+    plaintext: string,
+    deviceIds: number[]
+  ): Promise<Array<{ deviceId: number; envelope: {
+    ciphertext: string;
+    senderDeviceId: number;
+    type: 'prekey' | 'message';
+    registrationId?: number;
+  } }>> {
+    // DevCrypto doesn't have per-device sessions, so encrypt once and use for all
+    const envelope = await this.encryptDm(recipientId, plaintext);
+    return deviceIds.map(deviceId => ({ deviceId, envelope }));
   }
 
   /**

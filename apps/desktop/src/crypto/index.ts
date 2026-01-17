@@ -93,6 +93,11 @@ class ElectronCryptoImpl implements RailGunCrypto {
     return 1;
   }
 
+  async setDeviceId(deviceId: number): Promise<void> {
+    // TODO: Implement via IPC to persist deviceId
+    logger.debug('setDeviceId:', deviceId);
+  }
+
   getRegistrationId(): number {
     return 0; // Use async version
   }
@@ -121,14 +126,32 @@ class ElectronCryptoImpl implements RailGunCrypto {
     logger.debug('ensureDmSession');
   }
 
-  async hasDmSession(_peerUserId: string): Promise<boolean> {
+  async hasDmSession(_peerUserId: string, _deviceId?: number): Promise<boolean> {
     // TODO: Implement via IPC
     return true;
   }
 
-  async encryptDm(peerUserId: string, plaintext: string): Promise<EncryptedMessage> {
+  async encryptDm(peerUserId: string, plaintext: string, _targetDeviceId?: number): Promise<EncryptedMessage> {
     const result = await window.electronAPI.crypto.encryptDm(peerUserId, plaintext);
     return result as EncryptedMessage;
+  }
+
+  async encryptDmForDevices(
+    peerUserId: string,
+    plaintext: string,
+    deviceIds: number[]
+  ): Promise<Array<{ deviceId: number; envelope: EncryptedMessage }>> {
+    // Encrypt for each device
+    const results: Array<{ deviceId: number; envelope: EncryptedMessage }> = [];
+    for (const deviceId of deviceIds) {
+      try {
+        const envelope = await this.encryptDm(peerUserId, plaintext, deviceId);
+        results.push({ deviceId, envelope });
+      } catch (error) {
+        logger.warn(`Failed to encrypt for device ${deviceId}:`, error);
+      }
+    }
+    return results;
   }
 
   async decryptDm(peerUserId: string, message: EncryptedMessage): Promise<string> {
@@ -255,7 +278,7 @@ export function getCrypto(): RailGunCrypto {
       cryptoInstance = new ElectronCryptoImpl();
     }
   }
-  return cryptoInstance;
+  return cryptoInstance!;
 }
 
 /**

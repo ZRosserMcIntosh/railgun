@@ -3,8 +3,16 @@
  * Defines constants and enumerations for the messaging protocol
  */
 
+/** Protocol versions */
+export enum ProtocolVersion {
+  /** V1: Single envelope per message (deprecated) */
+  V1_SINGLE_ENVELOPE = 1,
+  /** V2: Per-device envelopes for multi-device support */
+  V2_PER_DEVICE_ENVELOPES = 2,
+}
+
 /** Current protocol version for message envelopes */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = ProtocolVersion.V2_PER_DEVICE_ENVELOPES;
 
 /** Types of conversations supported */
 export enum ConversationType {

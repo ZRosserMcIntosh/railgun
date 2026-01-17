@@ -114,6 +114,16 @@ export class RailGunCryptoImpl implements RailGunCrypto {
   }
 
   /**
+   * Set the device ID (called after server assigns one).
+   * Persists the server-assigned device ID locally.
+   */
+  async setDeviceId(deviceId: number): Promise<void> {
+    this.ensureInitialized();
+    await this.signal.setDeviceId(deviceId);
+    cryptoLogger.debug(`Device ID set to ${deviceId}`);
+  }
+
+  /**
    * Get the registration ID.
    */
   getRegistrationId(): number {
@@ -242,20 +252,23 @@ export class RailGunCryptoImpl implements RailGunCrypto {
   /**
    * Check if we have a DM session with a peer.
    */
-  async hasDmSession(peerUserId: string): Promise<boolean> {
+  async hasDmSession(peerUserId: string, deviceId?: number): Promise<boolean> {
     this.ensureInitialized();
-    // Check for session with device 1 (primary device)
-    return this.signal.hasSession(peerUserId, 1);
+    // Check for session with specified device or device 1 (primary device)
+    return this.signal.hasSession(peerUserId, deviceId ?? 1);
   }
 
   /**
-   * Encrypt a DM message.
+   * Encrypt a DM message for a specific device.
+   * @param peerUserId The recipient's user ID
+   * @param plaintext The message plaintext  
+   * @param targetDeviceId Target device ID. Defaults to 1 for backward compat.
    */
-  async encryptDm(peerUserId: string, plaintext: string): Promise<EncryptedMessage> {
+  async encryptDm(peerUserId: string, plaintext: string, targetDeviceId?: number): Promise<EncryptedMessage> {
     this.ensureInitialized();
 
     const plaintextBytes = new TextEncoder().encode(plaintext);
-    const deviceId = 1; // TODO: Support multiple devices
+    const deviceId = targetDeviceId ?? 1;
 
     const result = await this.signal.encrypt(peerUserId, deviceId, plaintextBytes);
 
@@ -265,6 +278,32 @@ export class RailGunCryptoImpl implements RailGunCrypto {
       senderDeviceId: this.signal.getDeviceId(),
       registrationId: result.type === 3 ? await this.signal.getRegistrationId() : undefined,
     };
+  }
+
+  /**
+   * Encrypt a DM for multiple devices.
+   * Returns an array of encrypted envelopes, one per target device.
+   */
+  async encryptDmForDevices(
+    peerUserId: string,
+    plaintext: string,
+    deviceIds: number[]
+  ): Promise<Array<{ deviceId: number; envelope: EncryptedMessage }>> {
+    this.ensureInitialized();
+
+    const results: Array<{ deviceId: number; envelope: EncryptedMessage }> = [];
+    
+    for (const deviceId of deviceIds) {
+      try {
+        const envelope = await this.encryptDm(peerUserId, plaintext, deviceId);
+        results.push({ deviceId, envelope });
+      } catch (error) {
+        cryptoLogger.warn(`Failed to encrypt for device ${deviceId}:`, error);
+        // Continue with other devices
+      }
+    }
+
+    return results;
   }
 
   /**

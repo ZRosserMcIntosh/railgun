@@ -5,12 +5,14 @@ import { EventsGateway } from './events.gateway';
 import { UsersModule } from '../users/users.module';
 import { MessagesModule } from '../messages/messages.module';
 import { CommunitiesModule } from '../communities/communities.module';
+import { CryptoModule } from '../crypto/crypto.module';
 
 @Module({
   imports: [
     UsersModule,
     forwardRef(() => MessagesModule),
     forwardRef(() => CommunitiesModule),
+    CryptoModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

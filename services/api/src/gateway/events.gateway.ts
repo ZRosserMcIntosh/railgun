@@ -17,17 +17,28 @@ import { UsersService } from '../users/users.service';
 import { MessagesService } from '../messages/messages.service';
 import { DmService } from '../messages/dm.service';
 import { CommunitiesService } from '../communities/communities.service';
+import { CryptoService } from '../crypto/crypto.service';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
   username?: string;
+  deviceId?: number; // Device ID for multi-device routing
+}
+
+/** Per-device envelope for V2 multi-device protocol */
+interface DeviceEnvelopePayload {
+  deviceId: number;
+  encryptedEnvelope: string;
 }
 
 /** Encrypted message payload from client */
 interface EncryptedMessagePayload {
   channelId?: string;
   recipientId?: string;
-  encryptedEnvelope: string;
+  /** V1: Single envelope for channels or legacy DMs */
+  encryptedEnvelope?: string;
+  /** V2: Per-device envelopes for multi-device DMs */
+  deviceEnvelopes?: DeviceEnvelopePayload[];
   clientNonce: string;
   protocolVersion?: number;
   replyToId?: string;
@@ -99,6 +110,7 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   private connectedUsers: Map<string, Set<string>> = new Map(); // userId -> Set of socket IDs
   private userChannels: Map<string, Set<string>> = new Map(); // userId -> Set of channel IDs
   private userDmRooms: Map<string, Set<string>> = new Map(); // userId -> Set of DM conversation IDs
+  private socketDeviceMap: Map<string, number> = new Map(); // socketId -> deviceId
 
   constructor(
     private readonly jwtService: JwtService,
@@ -107,6 +119,7 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     private readonly messagesService: MessagesService,
     private readonly dmService: DmService,
     private readonly communitiesService: CommunitiesService,
+    private readonly cryptoService: CryptoService,
   ) {}
 
   afterInit(_server: Server) {
@@ -118,6 +131,7 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
       const token =
         client.handshake.auth?.token ||
         client.handshake.headers?.authorization?.replace('Bearer ', '');
+      const deviceId = client.handshake.auth?.deviceId;
 
       if (!token) {
         client.emit(WSEventType.AUTH_ERROR, { message: 'No token provided' });
@@ -132,6 +146,17 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
       client.userId = payload.sub;
       client.username = payload.username;
 
+      // Validate and store deviceId if provided
+      if (deviceId && typeof deviceId === 'number') {
+        const device = await this.cryptoService.getDeviceByUserAndDeviceId(payload.sub, deviceId);
+        if (device) {
+          client.deviceId = deviceId;
+          this.socketDeviceMap.set(client.id, deviceId);
+        } else {
+          wsLogger.warn(`Invalid deviceId ${deviceId} for user ${payload.sub}`);
+        }
+      }
+
       if (!this.connectedUsers.has(payload.sub)) {
         this.connectedUsers.set(payload.sub, new Set());
       }
@@ -142,12 +167,13 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
       client.emit(WSEventType.AUTHENTICATED, {
         userId: payload.sub,
         username: payload.username,
+        deviceId: client.deviceId,
       });
 
       // Broadcast presence to relevant users only (channels and DM partners)
       await this.broadcastPresenceToRelevantUsers(client.userId!, PresenceStatus.ONLINE);
 
-      process.stderr.write(`Client connected: ${payload.username} (${client.id})\n`);
+      process.stderr.write(`Client connected: ${payload.username} (${client.id}) deviceId: ${client.deviceId || 'none'}\n`);
     } catch {
       client.emit(WSEventType.AUTH_ERROR, { message: 'Invalid token' });
       client.disconnect();
@@ -165,6 +191,9 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
           await this.broadcastPresenceToRelevantUsers(client.userId, PresenceStatus.OFFLINE);
         }
       }
+      
+      // Clean up device mapping
+      this.socketDeviceMap.delete(client.id);
 
       // Clean up channel/DM room tracking
       this.userChannels.delete(client.userId);
@@ -212,43 +241,101 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
         return { success: true, messageId: existing.id, duplicate: true };
       }
 
-      // Store message
-      const message = await this.messagesService.create(client.userId, {
-        channelId: data.channelId,
-        recipientId: data.recipientId,
-        encryptedEnvelope: data.encryptedEnvelope,
-        clientNonce: data.clientNonce,
-        protocolVersion: data.protocolVersion,
-        replyToId: data.replyToId,
-      });
+      // Detect V2 format: deviceEnvelopes at top level for multi-device DMs
+      const isV2 = data.recipientId && 
+                   Array.isArray(data.deviceEnvelopes) && 
+                   data.deviceEnvelopes.length > 0;
 
-      // Update DM last message time
-      if (message.conversationId) {
-        await this.dmService.updateLastMessage(message.conversationId);
-      }
+      let message;
 
-      const messagePayload = {
-        id: message.id,
-        senderId: client.userId,
-        senderUsername: client.username,
-        channelId: message.channelId,
-        conversationId: message.conversationId,
-        conversationType: message.conversationType,
-        encryptedEnvelope: message.encryptedEnvelope,
-        protocolVersion: message.protocolVersion,
-        replyToId: message.replyToId,
-        createdAt: message.createdAt,
-      };
+      if (isV2 && data.deviceEnvelopes && data.recipientId) {
+        // V2 DM: Store per-device envelopes and route to specific devices
 
-      // Broadcast using rooms
-      if (data.channelId) {
-        // Send to channel room only
-        this.server.to(`channel:${data.channelId}`).emit(WSEventType.MESSAGE_RECEIVED, messagePayload);
-      } else if (data.recipientId && message.conversationId) {
-        // Send to DM room only
-        this.server.to(`dm:${message.conversationId}`).emit(WSEventType.MESSAGE_RECEIVED, messagePayload);
-        // Also send to sender if not in room (fallback)
-        client.emit(WSEventType.MESSAGE_RECEIVED, messagePayload);
+        // Create V2 message with envelopes
+        message = await this.messagesService.createWithEnvelopes(
+          client.userId,
+          {
+            recipientId: data.recipientId,
+            encryptedEnvelope: data.deviceEnvelopes[0]?.encryptedEnvelope || '{}', // Store first envelope as primary
+            clientNonce: data.clientNonce,
+            protocolVersion: data.protocolVersion || 2,
+            replyToId: data.replyToId,
+          },
+          data.deviceEnvelopes.map(env => ({
+            recipientUserId: data.recipientId!,
+            recipientDeviceId: env.deviceId,
+            encryptedEnvelope: env.encryptedEnvelope,
+          })),
+        );
+
+        // Update DM last message time
+        if (message.conversationId) {
+          await this.dmService.updateLastMessage(message.conversationId);
+        }
+
+        // Route to each recipient device
+        for (const env of data.deviceEnvelopes) {
+          const devicePayload = {
+            id: message.id,
+            senderId: client.userId,
+            senderUsername: client.username,
+            conversationId: message.conversationId,
+            conversationType: message.conversationType,
+            // Send the envelope directly - it's already in the right format
+            encryptedEnvelope: env.encryptedEnvelope,
+            protocolVersion: data.protocolVersion || 2,
+            replyToId: message.replyToId,
+            createdAt: message.createdAt,
+          };
+
+          this.sendToUserDevice(
+            data.recipientId,
+            env.deviceId,
+            WSEventType.MESSAGE_RECEIVED,
+            devicePayload,
+          );
+        }
+      } else {
+        // V1 or channel message: Use existing logic
+        message = await this.messagesService.create(client.userId, {
+          channelId: data.channelId,
+          recipientId: data.recipientId,
+          encryptedEnvelope: data.encryptedEnvelope || '{}',
+          clientNonce: data.clientNonce,
+          protocolVersion: data.protocolVersion,
+          replyToId: data.replyToId,
+        });
+
+        // Update DM last message time
+        if (message.conversationId) {
+          await this.dmService.updateLastMessage(message.conversationId);
+        }
+
+        const messagePayload = {
+          id: message.id,
+          senderId: client.userId,
+          senderUsername: client.username,
+          channelId: message.channelId,
+          conversationId: message.conversationId,
+          conversationType: message.conversationType,
+          encryptedEnvelope: message.encryptedEnvelope,
+          protocolVersion: message.protocolVersion,
+          replyToId: message.replyToId,
+          createdAt: message.createdAt,
+        };
+
+        // Broadcast using rooms
+        if (data.channelId) {
+          // Send to channel room only
+          this.server.to(`channel:${data.channelId}`).emit(WSEventType.MESSAGE_RECEIVED, messagePayload);
+        } else if (data.recipientId && message.conversationId) {
+          // V1 DM: Send to DM room and also directly to recipient
+          this.server.to(`dm:${message.conversationId}`).emit(WSEventType.MESSAGE_RECEIVED, messagePayload);
+          // Also send directly to all recipient's connected sockets (for delivery without room join)
+          this.sendToUser(data.recipientId, WSEventType.MESSAGE_RECEIVED, messagePayload);
+          // Also send to sender if not in room (fallback)
+          client.emit(WSEventType.MESSAGE_RECEIVED, messagePayload);
+        }
       }
 
       client.emit(WSEventType.MESSAGE_ACK, {
@@ -429,6 +516,37 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
       for (const socketId of userSockets) {
         this.server.to(socketId).emit(event, data);
       }
+    }
+  }
+
+  /**
+   * Send to a specific user's device.
+   * Falls back to sending to all user's devices if device not found.
+   */
+  private sendToUserDevice(
+    userId: string,
+    deviceId: number,
+    event: WSEventType,
+    payload: unknown,
+  ): void {
+    const userSockets = this.connectedUsers.get(userId);
+    if (!userSockets) return;
+
+    let sent = false;
+    for (const socketId of userSockets) {
+      const socketDeviceId = this.socketDeviceMap.get(socketId);
+      if (socketDeviceId === deviceId) {
+        this.server.to(socketId).emit(event, payload);
+        sent = true;
+        break;
+      }
+    }
+
+    // If specific device not connected, message will be fetched on reconnect
+    // Optionally, we could send to all devices as fallback:
+    if (!sent) {
+      // Log for debugging but don't send to wrong devices
+      wsLogger.debug(`Device ${deviceId} for user ${userId} not connected, message queued`);
     }
   }
 

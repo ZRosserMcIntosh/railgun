@@ -2,8 +2,23 @@ import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef }
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MessageEntity } from './message.entity';
-import { MessageStatus, ConversationType } from '@railgun/shared';
+import { MessageEnvelopeEntity } from './message-envelope.entity';
+import { MessageStatus, ConversationType, ProtocolVersion } from '@railgun/shared';
 import { DmService } from './dm.service';
+
+/** Per-device envelope for V2 messages (internal format) */
+export interface DeviceEnvelopeDto {
+  recipientDeviceId: number;
+  ciphertext: string;
+  messageType: 'prekey' | 'message';
+}
+
+/** Input DTO for creating V2 envelopes (from gateway) */
+export interface CreateEnvelopeDto {
+  recipientUserId: string;
+  recipientDeviceId: number;
+  encryptedEnvelope: string; // Full envelope JSON from client
+}
 
 /** DTO for creating a message */
 export interface CreateMessageDto {
@@ -36,6 +51,8 @@ export class MessagesService {
   constructor(
     @InjectRepository(MessageEntity)
     private readonly messageRepository: Repository<MessageEntity>,
+    @InjectRepository(MessageEnvelopeEntity)
+    private readonly envelopeRepository: Repository<MessageEnvelopeEntity>,
     @Inject(forwardRef(() => DmService))
     private readonly dmService: DmService,
   ) {}
@@ -71,6 +88,114 @@ export class MessagesService {
     });
 
     return this.messageRepository.save(message);
+  }
+
+  /**
+   * Create a V2 DM message with per-device envelopes.
+   * This is the main method used by the gateway for multi-device messages.
+   */
+  async createWithEnvelopes(
+    senderId: string,
+    dto: CreateMessageDto,
+    envelopes: CreateEnvelopeDto[],
+  ): Promise<MessageEntity> {
+    // Create base message with V2 protocol version
+    const message = await this.create(senderId, {
+      ...dto,
+      protocolVersion: dto.protocolVersion ?? 2,
+    });
+
+    // Store per-device envelopes
+    const envelopeEntities = envelopes.map((env) =>
+      this.envelopeRepository.create({
+        messageId: message.id,
+        recipientUserId: env.recipientUserId,
+        recipientDeviceId: env.recipientDeviceId,
+        encryptedEnvelope: env.encryptedEnvelope,
+      }),
+    );
+
+    await this.envelopeRepository.save(envelopeEntities);
+
+    return message;
+  }
+
+  /**
+   * Create a V2 DM message with per-device envelopes (legacy signature).
+   * @deprecated Use createWithEnvelopes instead.
+   */
+  async createV2DmMessage(
+    senderId: string,
+    recipientId: string,
+    dto: CreateMessageDto,
+    envelopes: DeviceEnvelopeDto[],
+  ): Promise<MessageEntity> {
+    // Create base message with V2 protocol version
+    const message = await this.create(senderId, {
+      ...dto,
+      recipientId,
+      protocolVersion: ProtocolVersion.V2_PER_DEVICE_ENVELOPES,
+    });
+
+    // Store per-device envelopes - convert legacy format to new format
+    const envelopeEntities = envelopes.map((env) =>
+      this.envelopeRepository.create({
+        messageId: message.id,
+        recipientUserId: recipientId,
+        recipientDeviceId: env.recipientDeviceId,
+        encryptedEnvelope: JSON.stringify({
+          ciphertext: env.ciphertext,
+          messageType: env.messageType,
+        }),
+      }),
+    );
+
+    await this.envelopeRepository.save(envelopeEntities);
+
+    return message;
+  }
+
+  /**
+   * Get the envelope for a specific device.
+   */
+  async getEnvelopeForDevice(
+    messageId: string,
+    recipientUserId: string,
+    recipientDeviceId: number,
+  ): Promise<MessageEnvelopeEntity | null> {
+    return this.envelopeRepository.findOne({
+      where: { messageId, recipientUserId, recipientDeviceId },
+    });
+  }
+
+  /**
+   * Mark envelope as delivered.
+   */
+  async markEnvelopeDelivered(envelopeId: string): Promise<void> {
+    await this.envelopeRepository.update(envelopeId, {
+      delivered: true,
+      deliveredAt: new Date(),
+    });
+  }
+
+  /**
+   * Get undelivered envelopes for a user's device.
+   */
+  async getUndeliveredEnvelopes(
+    recipientUserId: string,
+    recipientDeviceId: number,
+    limit = 100,
+  ): Promise<MessageEnvelopeEntity[]> {
+    return this.envelopeRepository.find({
+      where: {
+        recipientUserId,
+        recipientDeviceId,
+        delivered: false,
+      },
+      relations: ['message'],
+      order: { createdAt: 'ASC' },
+      take: limit,
+    });
   }
 
   /**
